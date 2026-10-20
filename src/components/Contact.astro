@@ -1,0 +1,125 @@
+---
+import { Image } from "astro:assets"
+import linkedin from "../assets/social/linkedin.png"
+import instagram from "../assets/social/instagram.png"
+import arena from "../assets/social/arena.png"
+import x from "../assets/social/x.png"
+import github from "../assets/social/github.png"
+import behance from "../assets/social/behance.png"
+
+const socials = [
+    { name: "LinkedIn", href: "https://www.linkedin.com/in/vansh-rastogi1/", src: linkedin },
+    { name: "Instagram", href: "https://www.instagram.com/vansh.rastogi_/", src: instagram },
+    { name: "Are.na", href: "https://www.are.na/vansh-rastogi/channels", src: arena },
+    { name: "X", href: "https://x.com/vansh_designs", src: x },
+    { name: "GitHub", href: "https://github.com/r-vansh/", src: github },
+    { name: "Behance", href: "https://www.behance.net/vanshrastogi", src: behance },
+]
+const RESUME = "https://drive.google.com/file/d/1ToBkoytEI-dncMYj2WT-1YDqcAKHq-IR/view?usp=sharing"
+---
+
+<section class="contact" aria-label="Contact">
+    <hr class="rule" />
+    <div class="wrap body">
+        <h2>Available for full-time roles.</h2>
+        <a class="resume caps" href={RESUME}>View Resume</a>
+        <div class="row">
+            <a class="email" href="mailto:rastogi.vansh@outlook.com">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">
+                    <path d="M30.6 1.4 1.9 12.9c-1 .4-.9 1.8.1 2.1l11.3 3.6 3.6 11.3c.3 1 1.7 1.1 2.1.1L30.6 1.4Zm-16 15.8-8.5-2.7L25.4 6.8 14.6 17.2Zm2.2 8.7-2.7-8.5L24.6 6.6l-7.8 19.3Z"></path>
+                </svg>
+                <span>rastogi.vansh@outlook.com</span>
+            </a>
+            <ul class="socials">
+                {
+                    socials.map((s) => (
+                        <li>
+                            <a href={s.href} aria-label={s.name} rel="me noopener">
+                                <Image src={s.src} alt="" width={62} height={62} densities={[1, 2]} loading="lazy" />
+                            </a>
+                        </li>
+                    ))
+                }
+            </ul>
+        </div>
+    </div>
+    <hr class="rule" />
+</section>
+
+<style>
+    .contact {
+        margin-top: clamp(80px, 11vw, 160px);
+    }
+    .body {
+        padding-bottom: 0;
+    }
+    h2 {
+        margin: 0;
+        font-size: clamp(32px, 4.444vw, 64px);
+        font-weight: 300;
+        line-height: 1;
+        letter-spacing: -0.03em;
+        color: var(--primary);
+    }
+    .resume {
+        display: inline-flex;
+        margin-top: 32px;
+        padding: 16px 24px;
+        background: var(--primary);
+        color: #fff;
+        font-weight: 500;
+    }
+    .resume:hover {
+        background: #000;
+    }
+    .row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 24px;
+        margin-top: 45px;
+    }
+    .email {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--gray-500);
+        font-size: clamp(20px, 2.222vw, 32px);
+        line-height: 1;
+        letter-spacing: -0.03em;
+        padding-bottom: 0;
+        min-width: 0;
+    }
+    .email span {
+        overflow-wrap: anywhere;
+    }
+    .email svg {
+        flex: none;
+        width: 1em;
+        height: 1em;
+    }
+    .email:hover {
+        color: var(--primary);
+    }
+    .socials {
+        display: flex;
+        flex-wrap: wrap;
+        gap: clamp(12px, 1.667vw, 24px);
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+    .socials img {
+        width: clamp(44px, 4.306vw, 62px);
+        height: auto;
+        border-radius: 29%;
+        transition: transform 0.15s ease;
+    }
+    .socials a:hover img {
+        transform: translateY(-2px);
+    }
+    .contact > .rule:last-child {
+        margin-top: 0;
+    }
+</style>

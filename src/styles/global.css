@@ -5,29 +5,27 @@
     font-display: swap;
 }
 
-:root {
-    color-scheme: light dark;
-    --bg: #f4f3ef;
-    --fg: #121212;
-    --muted: #5a5955;
-    --line: rgba(0, 0, 0, 0.1);
-    --dot: rgba(0, 0, 0, 0.09);
-    --card: #ebe9e3;
-    --accent: #ff5a2f;
-    --sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-    --gutter: clamp(16px, 4vw, 40px);
+/* Subset to the glyphs of "ART/facts" only (about 4 KB) */
+@font-face {
+    font-family: "Geist Pixel Circle";
+    src: url("/fonts/geist-pixel-circle.woff2") format("woff2");
+    font-display: swap;
 }
 
-@media (prefers-color-scheme: dark) {
-    :root {
-        --bg: #0b0b0b;
-        --fg: #ecebe7;
-        --muted: #8d8c88;
-        --line: rgba(255, 255, 255, 0.1);
-        --dot: rgba(255, 255, 255, 0.08);
-        --card: #161616;
-    }
+/* Tokens from the Figma file (Personal Portfolio → Artifacts) */
+:root {
+    --bg: #f6f6f6;
+    --fg: #000;
+    --gray-500: #8e8e95;
+    --gray-200: #dddddf;
+    --card: #efefef;
+    --card-line: #d7d7d7;
+    --primary: #fb4300;
+    --sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --pixel: "Geist Pixel Circle", var(--sans);
+    /* 64px at 1440 wide, scaling down to 16px on phones */
+    --edge: clamp(16px, 4.444vw, 64px);
+    --gap: clamp(12px, 1.667vw, 24px);
 }
 
 /* Smooth page changes with no JS, where the browser supports it */
@@ -49,26 +47,28 @@ body {
     margin: 0;
     min-height: 100vh;
     background-color: var(--bg);
-    /* The hero's dot grid, as the site's texture: drawn by CSS, no image */
-    background-image: radial-gradient(var(--dot) 1px, transparent 1.4px);
-    background-size: 20px 20px;
+    /* The two vertical guide lines, 64px in from each side */
+    background-image:
+        linear-gradient(var(--gray-200), var(--gray-200)),
+        linear-gradient(var(--gray-200), var(--gray-200));
+    background-size: 1px 100%;
+    background-position:
+        var(--edge) 0,
+        calc(100% - var(--edge)) 0;
+    background-repeat: no-repeat;
     color: var(--fg);
-    font: 400 16px/1.55 var(--sans);
+    font: 400 16px/1.3 var(--sans);
+    letter-spacing: -0.03em;
     -webkit-font-smoothing: antialiased;
 }
 
 a {
     color: inherit;
-    text-underline-offset: 0.2em;
-    text-decoration-thickness: 1px;
-}
-
-a:hover {
-    color: var(--accent);
+    text-decoration: none;
 }
 
 :focus-visible {
-    outline: 2px solid var(--accent);
+    outline: 2px solid var(--primary);
     outline-offset: 2px;
 }
 
@@ -78,17 +78,22 @@ img {
     display: block;
 }
 
-.mono {
-    font-family: var(--mono);
-    font-size: 0.8125rem;
-    letter-spacing: 0;
-    color: var(--muted);
+.wrap {
+    padding-inline: var(--edge);
 }
 
-.wrap {
-    padding-inline: var(--gutter);
-    max-width: 1440px;
-    margin-inline: auto;
+/* A full-width hairline, like the horizontal rules in the design */
+.rule {
+    border: 0;
+    border-top: 1px solid var(--gray-200);
+    margin: 0;
+}
+
+.caps {
+    text-transform: uppercase;
+    font-size: 16px;
+    line-height: 1;
+    letter-spacing: -0.03em;
 }
 
 .visually-hidden {

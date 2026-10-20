@@ -26,8 +26,8 @@ const d = entry.data
         style={`view-transition-name: poster-${entry.id}`}
     />
     <canvas aria-label={`${d.title}, interactive`}></canvas>
-    <button type="button" class="play mono" data-play>Motion is reduced on this device. Play anyway</button>
-    <p class="error mono" role="status">This one didn't start in your browser. The poster shows what it looks like.</p>
+    <button type="button" class="play" data-play>Motion is reduced on this device. Play anyway</button>
+    <p class="error" role="status">This one didn't start in your browser. The poster shows what it looks like.</p>
 </div>
 
 <script>
@@ -41,12 +41,13 @@ const d = entry.data
         min-height: 360px;
         background: var(--stage-bg);
         overflow: hidden;
-        border-block: 1px solid var(--line);
+        border: 1px solid var(--card-line);
     }
     .stage.full {
         height: 100vh;
         height: 100dvh;
         border: 0;
+        min-height: 0;
     }
     .stage :global(.poster),
     canvas {
@@ -75,7 +76,7 @@ const d = entry.data
         margin: 0;
         padding: 8px 14px;
         border-radius: 999px;
-        border: 1px solid var(--line);
+        border: 1px solid var(--gray-200);
         background: var(--bg);
         color: var(--fg);
         display: none;

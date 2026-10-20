@@ -1,0 +1,12 @@
+---
+// The R mark from Logo.svg, without its frame. Inherits the text colour.
+interface Props {
+    height: number
+    class?: string
+}
+const { height, class: className } = Astro.props
+---
+
+<svg class={className} height={height} width={Math.round(height * 0.797 * 100) / 100} viewBox="9.33 9 64.96 81.48" fill="currentColor" aria-hidden="true">
+    <path d="M39.2266 9C49.4468 9.00017 57.7314 17.2856 57.7314 27.5059C57.7314 36.9435 50.6682 44.7265 41.5459 45.8672C43.4208 56.019 45.663 64.44 48.4922 70.6377C51.278 76.7401 54.2325 79.7813 57.0986 80.8145C59.7691 81.777 63.6708 81.4371 69.5938 77.4316L74.2861 84.3711C67.2959 89.0982 60.5148 90.9507 54.2578 88.6953C48.1964 86.5104 43.9789 80.9226 40.8721 74.1172C35.1464 61.5746 31.8357 41.8122 29.2695 18.9648L17.8506 89.6475H9.3291L22.3594 9.00098L39.2266 9Z"></path>
+</svg>

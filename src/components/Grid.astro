@@ -1,4 +1,7 @@
 ---
+// Three staggered columns, as in the design. Entries are dealt left to right
+// (newest first), so reading across a row follows the order they were posted.
+// On narrow screens the columns dissolve into one list in that same order.
 import Card from "./Card.astro"
 import type { Entry } from "../lib/entries"
 
@@ -7,16 +10,47 @@ interface Props {
 }
 
 const { items } = Astro.props
+const columns = [0, 1, 2].map((c) => items.map((item, i) => ({ ...item, i })).filter(({ i }) => i % 3 === c))
 ---
 
 <div class="grid">
-    {items.map(({ entry, number }, i) => <Card entry={entry} number={number} eager={i < 3} />)}
+    {
+        columns.map((col, c) => (
+            <div class:list={["col", `col-${c}`]}>
+                {col.map(({ entry, number, i }) => (
+                    <Card entry={entry} number={number} eager={i < 3} order={i} />
+                ))}
+            </div>
+        ))
+    }
 </div>
 
 <style>
     .grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
-        gap: 16px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: var(--gap);
+        align-items: start;
+    }
+    .col {
+        display: flex;
+        flex-direction: column;
+        gap: var(--gap);
+    }
+    /* The design's stagger: middle column highest, right column lowest */
+    .col-0 {
+        margin-top: calc(100 / 1440 * 100vw);
+    }
+    .col-2 {
+        margin-top: calc(166 / 1440 * 100vw);
+    }
+    @media (max-width: 720px) {
+        .grid {
+            display: flex;
+            flex-direction: column;
+        }
+        .col {
+            display: contents;
+        }
     }
 </style>

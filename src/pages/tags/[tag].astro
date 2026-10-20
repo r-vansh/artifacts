@@ -1,7 +1,6 @@
 ---
 import Base from "../../layouts/Base.astro"
 import Grid from "../../components/Grid.astro"
-import TagBar from "../../components/TagBar.astro"
 import { getEntries } from "../../lib/entries"
 
 export async function getStaticPaths() {
@@ -9,17 +8,41 @@ export async function getStaticPaths() {
     const used = new Set(items.flatMap(({ entry }) => entry.data.tags))
     return [...used].map((tag) => ({
         params: { tag },
-        props: { tag, used, items: items.filter(({ entry }) => entry.data.tags.includes(tag as never)) },
+        props: { tag, items: items.filter(({ entry }) => entry.data.tags.includes(tag as never)) },
     }))
 }
 
-const { tag, used, items } = Astro.props
+const { tag, items } = Astro.props
 ---
 
 <Base title={tag} description={`art/facts experiments tagged ${tag}.`}>
     <main class="wrap">
-        <h1 class="visually-hidden">Experiments tagged {tag}</h1>
-        <TagBar current={tag} used={used} />
+        <section class="intro">
+            <h1>{tag}</h1>
+            <a href="/">All experiments</a>
+        </section>
         <Grid items={items} />
     </main>
 </Base>
+
+<style>
+    .intro {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        padding-block: clamp(64px, 10vw, 140px) clamp(32px, 6vw, 80px);
+    }
+    h1 {
+        margin: 0;
+        font-size: clamp(32px, 3.333vw, 48px);
+        font-weight: 300;
+        line-height: 1;
+        color: var(--gray-500);
+    }
+    a {
+        text-transform: uppercase;
+    }
+    a:hover {
+        color: var(--primary);
+    }
+</style>

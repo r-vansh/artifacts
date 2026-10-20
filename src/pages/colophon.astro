@@ -1,0 +1,47 @@
+---
+import Base from "../layouts/Base.astro"
+---
+
+<Base title="Colophon" description="How art/facts is made.">
+    <main class="wrap">
+        <article>
+            <h1>Colophon</h1>
+            <p>
+                art/facts is a static site built with <a href="https://astro.build">Astro</a>. Pages ship almost no
+                JavaScript; each experiment's code loads only when its stage scrolls into view, and pauses when it
+                leaves.
+            </p>
+            <p>
+                Set in <a href="https://vercel.com/font">Geist</a> and Geist Pixel. Hosted on GitHub Pages. The source
+                is open at <a href="https://github.com/r-vansh/artifacts">github.com/r-vansh/artifacts</a>.
+            </p>
+            <p>Designed and built by <a href="https://vanshrastogi.me">Vansh Rastogi</a>.</p>
+        </article>
+    </main>
+</Base>
+
+<style>
+    article {
+        max-width: 640px;
+        padding-top: clamp(64px, 10vw, 140px);
+        font-size: 18px;
+        font-weight: 300;
+        line-height: 1.5;
+        letter-spacing: -0.01em;
+    }
+    h1 {
+        margin: 0 0 24px;
+        font-size: clamp(32px, 3.333vw, 48px);
+        font-weight: 300;
+        line-height: 1;
+        color: var(--gray-500);
+    }
+    a {
+        text-decoration: underline;
+        text-underline-offset: 0.2em;
+        text-decoration-thickness: 1px;
+    }
+    a:hover {
+        color: var(--primary);
+    }
+</style>

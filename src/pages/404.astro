@@ -8,3 +8,21 @@ import Base from "../layouts/Base.astro"
         <p><a href="/">Back to all experiments</a></p>
     </main>
 </Base>
+
+<style>
+    main {
+        padding-top: clamp(64px, 10vw, 140px);
+    }
+    h1 {
+        margin: 0 0 16px;
+        font-size: clamp(32px, 3.333vw, 48px);
+        font-weight: 300;
+        color: var(--gray-500);
+    }
+    a {
+        text-transform: uppercase;
+    }
+    a:hover {
+        color: var(--primary);
+    }
+</style>

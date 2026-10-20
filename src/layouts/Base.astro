@@ -1,5 +1,7 @@
 ---
 import "../styles/global.css"
+import Logo from "../components/icons/Logo.astro"
+import Contact from "../components/Contact.astro"
 
 interface Props {
     title?: string
@@ -9,11 +11,20 @@ interface Props {
 
 const {
     title,
-    description = "art/facts: experiments by Vansh Rastogi. Playable sketches, sound toys, motion studies and the ideas that didn't work.",
+    description = "art/facts: experiments by Vansh Rastogi, built over time while learning tools, workflows and tricks.",
     image,
 } = Astro.props
 const fullTitle = title ? `${title} · art/facts` : "art/facts · Vansh Rastogi"
 const canonical = new URL(Astro.url.pathname, Astro.site)
+
+const nav = [
+    { label: "Resume", href: "https://drive.google.com/file/d/1ToBkoytEI-dncMYj2WT-1YDqcAKHq-IR/view?usp=sharing" },
+    { label: "Work", href: "https://vanshrastogi.me/#case-study" },
+    { label: "X-periments", href: "/" },
+    { label: "Contact", href: "https://vanshrastogi.me/#contact" },
+    { label: "Colophon", href: "/colophon" },
+]
+const here = Astro.url.pathname
 ---
 
 <!doctype html>
@@ -23,9 +34,11 @@ const canonical = new URL(Astro.url.pathname, Astro.site)
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>{fullTitle}</title>
         <meta name="description" content={description} />
+        <meta name="theme-color" content="#f6f6f6" />
         <link rel="canonical" href={canonical} />
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <link rel="preload" href="/fonts/geist.woff2" as="font" type="font/woff2" crossorigin />
+        <link rel="preload" href="/fonts/geist-pixel-circle.woff2" as="font" type="font/woff2" crossorigin />
         <link rel="alternate" type="application/rss+xml" title="art/facts" href="/rss.xml" />
         <link rel="sitemap" href="/sitemap-index.xml" />
         <meta property="og:title" content={fullTitle} />
@@ -36,45 +49,61 @@ const canonical = new URL(Astro.url.pathname, Astro.site)
         <meta name="twitter:card" content={image ? "summary_large_image" : "summary"} />
     </head>
     <body>
-        <header class="site wrap">
-            <a href="/" class="name" aria-label="art/facts home">art<span>/</span>facts</a>
-            <nav class="mono">
-                <a href="https://vanshrastogi.me">vanshrastogi.me</a>
-                <a href="/rss.xml">rss</a>
-            </nav>
+        <header class="top">
+            <a href="https://vanshrastogi.me" aria-label="Vansh Rastogi, portfolio" class="mark"><Logo height={32} /></a>
         </header>
         <slot />
-        <footer class="site wrap mono">
-            <span>Vansh Rastogi</span>
-            <a href="https://github.com/r-vansh/artifacts">source</a>
+        <Contact />
+        <footer class="bottom wrap">
+            <a href="https://vanshrastogi.me" aria-label="Vansh Rastogi, portfolio" class="mark"><Logo height={48} /></a>
+            <nav aria-label="Site">
+                {
+                    nav.map((n) => (
+                        <a class="caps" href={n.href} aria-current={n.href === here ? "page" : undefined}>
+                            {n.label}
+                        </a>
+                    ))
+                }
+            </nav>
         </footer>
     </body>
 </html>
 
 <style>
-    header.site {
+    .top {
         display: flex;
-        align-items: baseline;
+        justify-content: center;
+        padding-top: 24px;
+    }
+    .mark {
+        display: inline-flex;
+        color: #000;
+    }
+    .mark:hover {
+        color: var(--primary);
+    }
+    .bottom {
+        display: flex;
+        flex-wrap: wrap;
         justify-content: space-between;
+        align-items: flex-start;
         gap: 16px;
-        padding-block: 20px;
-    }
-    .name {
-        font-weight: 600;
-        text-decoration: none;
-        letter-spacing: -0.01em;
-        view-transition-name: site-name;
-    }
-    .name span {
-        color: var(--accent);
+        margin-top: clamp(80px, 11.1vw, 160px);
+        border-top: 1px solid var(--gray-200);
+        padding-bottom: 0;
     }
     nav {
         display: flex;
-        gap: 16px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 0 clamp(8px, 1.667vw, 24px);
+        padding-top: 3px;
     }
-    footer.site {
-        display: flex;
-        justify-content: space-between;
-        padding-block: 48px 32px;
+    nav a {
+        padding: 8px;
+    }
+    nav a:hover,
+    nav a[aria-current="page"] {
+        color: var(--primary);
     }
 </style>
