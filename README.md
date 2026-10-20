@@ -59,4 +59,4 @@ scripts/                budget.mjs, poster.mjs
 
 ## Deploy (GitHub Pages)
 
-`.github/workflows/deploy.yml` builds the site and publishes `dist/` to GitHub Pages on every push to `main`. One-time setup: Settings → Pages → Source "GitHub Actions" and custom domain `artifacts.vanshrastogi.me`, plus a CNAME at Namecheap (host `artifacts`, value `r-vansh.github.io`).
+`.github/workflows/deploy.yml` builds the site and publishes `dist/` to GitHub Pages when run by hand (Actions → Deploy → Run workflow), so pushes don't go live on their own. One-time setup: Settings → Pages → Source "GitHub Actions" and custom domain `artifacts.vanshrastogi.me`, plus a CNAME at Namecheap (host `artifacts`, value `r-vansh.github.io`).
