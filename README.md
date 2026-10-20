@@ -57,8 +57,8 @@ src/
 scripts/                budget.mjs, poster.mjs
 ```
 
-## Deploy (Cloudflare Workers)
+## Deploy (Cloudflare Pages)
 
-- Build command `npm run build`, deploy command `npx wrangler deploy`, variable `NODE_VERSION=22`.
-- `wrangler.jsonc` serves `dist/` as static assets, so no server code runs. `public/_headers` caches hashed files for a year.
-- Custom domain `artifacts.vanshrastogi.me`, added in the Worker's Settings, under Domains & Routes.
+- Framework preset None, build command `npm run build`, output directory `dist`, variable `NODE_VERSION=22`.
+- Every branch gets a preview URL; `main` is production. `public/_headers` caches hashed files for a year.
+- Custom domain `artifacts.vanshrastogi.me`: a CNAME at Namecheap (host `artifacts`) pointing to the project's `pages.dev` address.
