@@ -1,0 +1,13 @@
+// Only used if the site is deployed as a Cloudflare Worker: it serves dist/ as
+// static files and stops `wrangler deploy` from adding a server adapter.
+// Cloudflare Pages skips this file (it has no pages_build_output_dir).
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "artifacts",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "404-page",
+    "html_handling": "drop-trailing-slash"
+  }
+}
