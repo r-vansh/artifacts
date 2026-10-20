@@ -1,0 +1,25 @@
+---
+import Base from "../../layouts/Base.astro"
+import Grid from "../../components/Grid.astro"
+import TagBar from "../../components/TagBar.astro"
+import { getEntries } from "../../lib/entries"
+
+export async function getStaticPaths() {
+    const items = await getEntries()
+    const used = new Set(items.flatMap(({ entry }) => entry.data.tags))
+    return [...used].map((tag) => ({
+        params: { tag },
+        props: { tag, used, items: items.filter(({ entry }) => entry.data.tags.includes(tag as never)) },
+    }))
+}
+
+const { tag, used, items } = Astro.props
+---
+
+<Base title={tag} description={`art/facts experiments tagged ${tag}.`}>
+    <main class="wrap">
+        <h1 class="visually-hidden">Experiments tagged {tag}</h1>
+        <TagBar current={tag} used={used} />
+        <Grid items={items} />
+    </main>
+</Base>

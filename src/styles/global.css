@@ -1,0 +1,107 @@
+@font-face {
+    font-family: "Geist";
+    src: url("/fonts/geist.woff2") format("woff2");
+    font-weight: 100 900;
+    font-display: swap;
+}
+
+:root {
+    color-scheme: light dark;
+    --bg: #f4f3ef;
+    --fg: #121212;
+    --muted: #5a5955;
+    --line: rgba(0, 0, 0, 0.1);
+    --dot: rgba(0, 0, 0, 0.09);
+    --card: #ebe9e3;
+    --accent: #ff5a2f;
+    --sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --gutter: clamp(16px, 4vw, 40px);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #0b0b0b;
+        --fg: #ecebe7;
+        --muted: #8d8c88;
+        --line: rgba(255, 255, 255, 0.1);
+        --dot: rgba(255, 255, 255, 0.08);
+        --card: #161616;
+    }
+}
+
+/* Smooth page changes with no JS, where the browser supports it */
+@view-transition {
+    navigation: auto;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html {
+    -webkit-text-size-adjust: 100%;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    background-color: var(--bg);
+    /* The hero's dot grid, as the site's texture: drawn by CSS, no image */
+    background-image: radial-gradient(var(--dot) 1px, transparent 1.4px);
+    background-size: 20px 20px;
+    color: var(--fg);
+    font: 400 16px/1.55 var(--sans);
+    -webkit-font-smoothing: antialiased;
+}
+
+a {
+    color: inherit;
+    text-underline-offset: 0.2em;
+    text-decoration-thickness: 1px;
+}
+
+a:hover {
+    color: var(--accent);
+}
+
+:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+}
+
+.mono {
+    font-family: var(--mono);
+    font-size: 0.8125rem;
+    letter-spacing: 0;
+    color: var(--muted);
+}
+
+.wrap {
+    padding-inline: var(--gutter);
+    max-width: 1440px;
+    margin-inline: auto;
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    @view-transition {
+        navigation: none;
+    }
+}

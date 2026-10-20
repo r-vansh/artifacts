@@ -1,0 +1,73 @@
+---
+import { Picture } from "astro:assets"
+import { href, isoDate, pad, type Entry } from "../lib/entries"
+
+interface Props {
+    entry: Entry
+    number: number
+    eager?: boolean
+}
+
+const { entry, number, eager = false } = Astro.props
+const d = entry.data
+const external = d.kind === "external"
+---
+
+<article class="card">
+    <a href={href(entry)} {...external ? { rel: "noopener" } : {}}>
+        <Picture
+            src={d.poster}
+            alt={d.posterAlt}
+            formats={["avif", "webp"]}
+            widths={[360, 540, 720, 1080]}
+            sizes="(min-width: 1100px) 33vw, (min-width: 700px) 50vw, 100vw"
+            loading={eager ? "eager" : "lazy"}
+            fetchpriority={eager ? "high" : "auto"}
+            style={`view-transition-name: poster-${entry.id}`}
+        />
+        <div class="meta">
+            <h2>{d.title}{external && <span aria-label="opens another site"> ↗</span>}</h2>
+            <p class="mono">
+                <span>{pad(number)}</span>
+                <time datetime={isoDate(d.date)}>{isoDate(d.date)}</time>
+                <span>{d.tags.join(" · ")}</span>
+            </p>
+        </div>
+    </a>
+</article>
+
+<style>
+    .card a {
+        display: block;
+        text-decoration: none;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        overflow: hidden;
+        height: 100%;
+    }
+    .card a:hover {
+        color: inherit;
+        border-color: var(--accent);
+    }
+    .card :global(img) {
+        width: 100%;
+        aspect-ratio: 4 / 3;
+        object-fit: cover;
+        background: var(--line);
+    }
+    .meta {
+        padding: 12px 14px 14px;
+    }
+    h2 {
+        margin: 0 0 4px;
+        font-size: 1rem;
+        font-weight: 500;
+    }
+    p {
+        margin: 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 12px;
+    }
+</style>

@@ -1,0 +1,25 @@
+{
+  "name": "artifacts",
+  "private": true,
+  "type": "module",
+  "description": "art/facts: Vansh Rastogi's experiments",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro check && astro build && node scripts/budget.mjs",
+    "preview": "astro preview",
+    "poster": "node scripts/poster.mjs"
+  },
+  "engines": {
+    "node": ">=22.22.0"
+  },
+  "dependencies": {
+    "@astrojs/rss": "^4.0.19",
+    "@astrojs/sitemap": "^3.7.4",
+    "astro": "^7.4.1"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.11",
+    "playwright-core": "^1.56.1",
+    "typescript": "^5.9.3"
+  }
+}

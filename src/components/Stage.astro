@@ -1,0 +1,93 @@
+---
+// The experiment's stage: static poster first, live canvas once the module loads.
+// Nothing here runs until the stage is on screen (see src/lib/stage.ts).
+import { Picture } from "astro:assets"
+import type { Entry } from "../lib/entries"
+
+interface Props {
+    entry: Entry
+    full?: boolean
+}
+
+const { entry, full = false } = Astro.props
+const d = entry.data
+---
+
+<div class:list={["stage", { full }]} data-stage data-slug={entry.id} data-state="poster" style={`--stage-bg: ${d.background}`}>
+    <Picture
+        src={d.poster}
+        alt={d.posterAlt}
+        formats={["avif", "webp"]}
+        widths={[720, 1080, 1600]}
+        sizes="100vw"
+        loading="eager"
+        fetchpriority="high"
+        class="poster"
+        style={`view-transition-name: poster-${entry.id}`}
+    />
+    <canvas aria-label={`${d.title}, interactive`}></canvas>
+    <button type="button" class="play mono" data-play>Motion is reduced on this device. Play anyway</button>
+    <p class="error mono" role="status">This one didn't start in your browser. The poster shows what it looks like.</p>
+</div>
+
+<script>
+    import "../lib/stage"
+</script>
+
+<style>
+    .stage {
+        position: relative;
+        height: min(78vh, 760px);
+        min-height: 360px;
+        background: var(--stage-bg);
+        overflow: hidden;
+        border-block: 1px solid var(--line);
+    }
+    .stage.full {
+        height: 100vh;
+        height: 100dvh;
+        border: 0;
+    }
+    .stage :global(.poster),
+    canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    canvas {
+        display: block;
+        opacity: 0;
+        transition: opacity 0.4s ease;
+        touch-action: pan-x pan-y pinch-zoom;
+        cursor: crosshair;
+    }
+    [data-state="live"] canvas {
+        opacity: 1;
+    }
+    .play,
+    .error {
+        position: absolute;
+        left: 50%;
+        bottom: 20px;
+        translate: -50% 0;
+        margin: 0;
+        padding: 8px 14px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: var(--bg);
+        color: var(--fg);
+        display: none;
+        width: max-content;
+        max-width: calc(100% - 32px);
+        text-align: center;
+    }
+    .play {
+        cursor: pointer;
+    }
+    [data-state="paused"] .play,
+    [data-state="error"] .error {
+        display: block;
+    }
+</style>

@@ -1,0 +1,36 @@
+---
+import { TAGS } from "../content.config"
+
+interface Props {
+    current?: string
+    used: Set<string>
+}
+
+const { current, used } = Astro.props
+---
+
+<nav class="tags mono" aria-label="Filter by tag">
+    <a href="/" aria-current={current ? undefined : "page"}>all</a>
+    {TAGS.filter((t) => used.has(t)).map((t) => <a href={`/tags/${t}`} aria-current={t === current ? "page" : undefined}>{t}</a>)}
+</nav>
+
+<style>
+    .tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-block: 0 20px;
+    }
+    a {
+        text-decoration: none;
+        padding: 4px 10px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--bg);
+    }
+    a[aria-current="page"] {
+        color: var(--bg);
+        background: var(--fg);
+        border-color: var(--fg);
+    }
+</style>

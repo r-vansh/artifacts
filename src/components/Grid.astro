@@ -1,0 +1,22 @@
+---
+import Card from "./Card.astro"
+import type { Entry } from "../lib/entries"
+
+interface Props {
+    items: { entry: Entry; number: number }[]
+}
+
+const { items } = Astro.props
+---
+
+<div class="grid">
+    {items.map(({ entry, number }, i) => <Card entry={entry} number={number} eager={i < 3} />)}
+</div>
+
+<style>
+    .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+        gap: 16px;
+    }
+</style>

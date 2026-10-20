@@ -1,0 +1,45 @@
+---
+import Base from "../layouts/Base.astro"
+import Grid from "../components/Grid.astro"
+import TagBar from "../components/TagBar.astro"
+import { getEntries } from "../lib/entries"
+
+const items = await getEntries()
+const used = new Set(items.flatMap(({ entry }) => entry.data.tags))
+---
+
+<Base>
+    <main class="wrap">
+        <section class="intro">
+            <h1>art<span>/</span>facts</h1>
+            <p>
+                Experiments by <a href="https://vanshrastogi.me">Vansh Rastogi</a>: playable sketches, sound toys,
+                motion studies, and the ideas that didn't work. {`${items.length} ${items.length === 1 ? "entry" : "entries"} so far.`}
+            </p>
+        </section>
+        <TagBar used={used} />
+        <Grid items={items} />
+    </main>
+</Base>
+
+<style>
+    .intro {
+        padding-block: clamp(32px, 8vw, 96px) 32px;
+        max-width: 760px;
+    }
+    h1 {
+        margin: 0 0 12px;
+        font-size: clamp(3.5rem, 13vw, 9rem);
+        line-height: 0.9;
+        font-weight: 600;
+        letter-spacing: -0.04em;
+    }
+    h1 span {
+        color: var(--accent);
+    }
+    p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 1.0625rem;
+    }
+</style>

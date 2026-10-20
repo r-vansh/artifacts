@@ -1,0 +1,105 @@
+---
+import { Picture, getImage } from "astro:assets"
+import { render } from "astro:content"
+import Base from "../../layouts/Base.astro"
+import Stage from "../../components/Stage.astro"
+import { getEntries, href, isoDate, pad } from "../../lib/entries"
+
+export async function getStaticPaths() {
+    // Oldest first, so "previous" and "next" follow the order things were made
+    const items = (await getEntries()).sort((a, b) => a.number - b.number)
+    return items
+        .filter(({ entry }) => entry.data.kind !== "external")
+        .map((item) => ({
+            params: { slug: item.entry.id },
+            props: {
+                ...item,
+                prev: items.find((o) => o.number === item.number - 1)?.entry,
+                next: items.find((o) => o.number === item.number + 1)?.entry,
+            },
+        }))
+}
+
+const { entry, number, prev, next } = Astro.props
+const d = entry.data
+const { Content } = await render(entry)
+const og = await getImage({ src: d.poster, width: 1200, format: "jpeg" })
+---
+
+<Base title={d.title} description={d.summary} image={og.src}>
+    <main>
+        {
+            d.kind === "interactive" ? (
+                <Stage entry={entry} />
+            ) : (
+                <div class="still">
+                    <Picture src={d.poster} alt={d.posterAlt} formats={["avif", "webp"]} widths={[720, 1080, 1600]} sizes="100vw" loading="eager" fetchpriority="high" />
+                </div>
+            )
+        }
+        <article class="wrap">
+            <header>
+                <h1>{d.title}</h1>
+                <p class="mono">
+                    <span>{pad(number)}</span>
+                    <time datetime={isoDate(d.date)}>{isoDate(d.date)}</time>
+                    <span>{d.status}</span>
+                    {d.tags.map((t) => <a href={`/tags/${t}`}>{t}</a>)}
+                    {d.sound && <span>sound on tap</span>}
+                </p>
+            </header>
+            <div class="body">
+                <Content />
+            </div>
+            <p class="links mono">
+                {d.kind === "interactive" && <a href={`/x/${entry.id}/play`}>fullscreen</a>}
+                {d.source && <a href={d.source}>source</a>}
+                {d.inPortfolio && <a href={d.inPortfolio}>on vanshrastogi.me</a>}
+            </p>
+            <nav class="pager mono" aria-label="More experiments">
+                {prev ? <a href={href(prev)}>← {prev.data.title}</a> : <span />}
+                {next ? <a href={href(next)}>{next.data.title} →</a> : <span />}
+            </nav>
+        </article>
+    </main>
+</Base>
+
+<style>
+    .still :global(img) {
+        width: 100%;
+        max-height: 78vh;
+        object-fit: contain;
+        background: var(--card);
+    }
+    article {
+        max-width: 760px;
+        margin-inline: 0;
+        padding-block: 32px 0;
+    }
+    h1 {
+        margin: 0 0 8px;
+        font-size: clamp(2rem, 6vw, 3.25rem);
+        line-height: 1.05;
+        font-weight: 600;
+        letter-spacing: -0.03em;
+    }
+    header p,
+    .links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 14px;
+        margin: 0;
+    }
+    .body {
+        margin-block: 24px;
+        font-size: 1.0625rem;
+    }
+    .pager {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        margin-top: 48px;
+        padding-top: 16px;
+        border-top: 1px solid var(--line);
+    }
+</style>

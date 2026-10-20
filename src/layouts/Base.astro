@@ -1,0 +1,80 @@
+---
+import "../styles/global.css"
+
+interface Props {
+    title?: string
+    description?: string
+    image?: string
+}
+
+const {
+    title,
+    description = "art/facts: experiments by Vansh Rastogi. Playable sketches, sound toys, motion studies and the ideas that didn't work.",
+    image,
+} = Astro.props
+const fullTitle = title ? `${title} · art/facts` : "art/facts · Vansh Rastogi"
+const canonical = new URL(Astro.url.pathname, Astro.site)
+---
+
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>{fullTitle}</title>
+        <meta name="description" content={description} />
+        <link rel="canonical" href={canonical} />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="preload" href="/fonts/geist.woff2" as="font" type="font/woff2" crossorigin />
+        <link rel="alternate" type="application/rss+xml" title="art/facts" href="/rss.xml" />
+        <link rel="sitemap" href="/sitemap-index.xml" />
+        <meta property="og:title" content={fullTitle} />
+        <meta property="og:description" content={description} />
+        <meta property="og:url" content={canonical} />
+        <meta property="og:type" content="website" />
+        {image && <meta property="og:image" content={new URL(image, Astro.site)} />}
+        <meta name="twitter:card" content={image ? "summary_large_image" : "summary"} />
+    </head>
+    <body>
+        <header class="site wrap">
+            <a href="/" class="name" aria-label="art/facts home">art<span>/</span>facts</a>
+            <nav class="mono">
+                <a href="https://vanshrastogi.me">vanshrastogi.me</a>
+                <a href="/rss.xml">rss</a>
+            </nav>
+        </header>
+        <slot />
+        <footer class="site wrap mono">
+            <span>Vansh Rastogi</span>
+            <a href="https://github.com/r-vansh/artifacts">source</a>
+        </footer>
+    </body>
+</html>
+
+<style>
+    header.site {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 16px;
+        padding-block: 20px;
+    }
+    .name {
+        font-weight: 600;
+        text-decoration: none;
+        letter-spacing: -0.01em;
+        view-transition-name: site-name;
+    }
+    .name span {
+        color: var(--accent);
+    }
+    nav {
+        display: flex;
+        gap: 16px;
+    }
+    footer.site {
+        display: flex;
+        justify-content: space-between;
+        padding-block: 48px 32px;
+    }
+</style>

@@ -1,0 +1,34 @@
+---
+// Stage only, no site chrome: for fullscreen and for embedding in the portfolio
+import "../../../styles/global.css"
+import Stage from "../../../components/Stage.astro"
+import { getEntries } from "../../../lib/entries"
+
+export async function getStaticPaths() {
+    const items = await getEntries()
+    return items
+        .filter(({ entry }) => entry.data.kind === "interactive")
+        .map(({ entry }) => ({ params: { slug: entry.id }, props: { entry } }))
+}
+
+const { entry } = Astro.props
+---
+
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>{entry.data.title} · art/facts</title>
+        <link rel="canonical" href={new URL(`/x/${entry.id}`, Astro.site)} />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <style is:global>
+            body {
+                background-image: none;
+            }
+        </style>
+    </head>
+    <body>
+        <Stage entry={entry} full />
+    </body>
+</html>

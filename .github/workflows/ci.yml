@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # Type check, build, then the size budget (fails if a page is over)
+      - run: npm run build
+      # Lighthouse on a simulated mid-range phone; fails under the scores in lighthouserc.json
+      - run: npx -y @lhci/cli@0.15.x autorun
