@@ -57,6 +57,6 @@ src/
 scripts/                budget.mjs, poster.mjs
 ```
 
-## Deploy (Cloudflare Pages, from GitHub Actions)
+## Deploy (GitHub Pages)
 
-`.github/workflows/deploy.yml` builds the site and uploads `dist/` to the Pages project `art-facts` on every push: `main` is production, other branches get a preview URL. It needs two repository secrets, `CLOUDFLARE_API_TOKEN` (Account → Cloudflare Pages → Edit) and `CLOUDFLARE_ACCOUNT_ID`. On `main` it also attaches `artifacts.vanshrastogi.me`; DNS is a CNAME at Namecheap, host `artifacts`, value `art-facts.pages.dev`. `public/_headers` caches hashed files for a year.
+`.github/workflows/deploy.yml` builds the site and publishes `dist/` to GitHub Pages on every push to `main`. One-time setup: Settings → Pages → Source "GitHub Actions" and custom domain `artifacts.vanshrastogi.me`, plus a CNAME at Namecheap (host `artifacts`, value `r-vansh.github.io`).
