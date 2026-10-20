@@ -1,0 +1,60 @@
+name: Deploy
+
+# Builds the site and uploads dist/ to Cloudflare Pages. main goes to production;
+# every other branch and pull request gets its own preview URL.
+# Needs two repository secrets: CLOUDFLARE_API_TOKEN (permission: Account,
+# Cloudflare Pages, Edit) and CLOUDFLARE_ACCOUNT_ID.
+
+on:
+  push:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PROJECT: art-facts
+  DOMAIN: artifacts.vanshrastogi.me
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+      - name: Create the Pages project (first run only)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx -y wrangler@4 pages project list | grep -q " $PROJECT " \
+            || npx -y wrangler@4 pages project create "$PROJECT" --production-branch main
+
+      - name: Upload to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx -y wrangler@4 pages deploy dist --project-name "$PROJECT" --branch "${GITHUB_REF_NAME}" --commit-dirty=true
+
+      - name: Attach the custom domain (no-op once attached)
+        if: github.ref == 'refs/heads/main'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          api="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT/domains"
+          auth="Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+          if ! curl -fsS -H "$auth" "$api" | grep -q "\"$DOMAIN\""; then
+            curl -fsS -X POST -H "$auth" -H "Content-Type: application/json" --data "{\"name\":\"$DOMAIN\"}" "$api" > /dev/null
+          fi
+          curl -fsS -H "$auth" "$api/$DOMAIN" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const r=JSON.parse(s).result;console.log(`Domain ${r.name}: ${r.status}`);console.log(`DNS: CNAME artifacts -> ${process.env.PROJECT}.pages.dev`)})'

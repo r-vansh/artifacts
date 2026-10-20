@@ -57,8 +57,6 @@ src/
 scripts/                budget.mjs, poster.mjs
 ```
 
-## Deploy (Cloudflare Pages)
+## Deploy (Cloudflare Pages, from GitHub Actions)
 
-- Framework preset None, build command `npm run build`, output directory `dist`, variable `NODE_VERSION=22`.
-- Every branch gets a preview URL; `main` is production. `public/_headers` caches hashed files for a year.
-- Custom domain `artifacts.vanshrastogi.me`: a CNAME at Namecheap (host `artifacts`) pointing to the project's `pages.dev` address.
+`.github/workflows/deploy.yml` builds the site and uploads `dist/` to the Pages project `art-facts` on every push: `main` is production, other branches get a preview URL. It needs two repository secrets, `CLOUDFLARE_API_TOKEN` (Account → Cloudflare Pages → Edit) and `CLOUDFLARE_ACCOUNT_ID`. On `main` it also attaches `artifacts.vanshrastogi.me`; DNS is a CNAME at Namecheap, host `artifacts`, value `art-facts.pages.dev`. `public/_headers` caches hashed files for a year.
