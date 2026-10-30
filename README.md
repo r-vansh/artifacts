@@ -28,7 +28,7 @@ A plain grid of square posters, five across on wide screens (4, 3 and 2 on small
 
 ## The loading animation
 
-On the first page of a visit, the Flow Field experiment covers the page full screen, faint, until a click (or Enter/Space). Then it draws itself in and opens through to the page, and the loader is gone within 3.9 s of that click (about 3.7 s in practice). It plays once per tab session, on every load under `npm run dev`, and never under reduced motion or without JS. It is `src/lib/splash.ts`, a lazy chunk that `Base.astro` loads, mounting `src/experiments/flow-field` with no tuning panel. Details are in `CLAUDE.md` ("Loading animation").
+On the first page of a visit, the Flow Field experiment covers the page full screen, faint, until a click (or Enter/Space). Then it draws itself in and opens through to the page, and the loader is gone about 5.7 s after that click (6 s at the latest). It plays once per tab session, on every load under `npm run dev`, and never under reduced motion or without JS. It is `src/lib/splash.ts`, a lazy chunk that `Base.astro` loads, mounting `src/experiments/flow-field` with no tuning panel. Details are in `CLAUDE.md` ("Loading animation").
 
 ## The intro effect
 

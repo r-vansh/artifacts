@@ -11,8 +11,8 @@
 import mount from "../experiments/flow-field/main"
 
 const LATE = 4000 // ms after navigation: if it cannot start by then, it does not play
-const OUT = 2300 // ms after the click: the reveal out starts
-const LIMIT = 3900 // ms after the click: everything is torn down, whatever the state
+const OUT = 3700 // ms after the click: the reveal out starts
+const LIMIT = 6000 // ms after the click: everything is torn down, whatever the state
 const CLICK = ["pointerdown", "keydown"]
 
 const root = document.documentElement
@@ -45,7 +45,7 @@ else {
         veil.append(canvas)
         // No tuning panel, even under `npm run dev`; shorter timings than the experiment's
         // own page, so the exit fits the limit
-        exp = mount(canvas, { gui: false, revealTime: 1.8, exitTime: 1.4, gateDelay: 0.15 })
+        exp = mount(canvas, { gui: false, revealTime: 3, exitTime: 2, gateDelay: 0.15 })
         // The canvas paints its own paper, so the veil's white steps aside and the reveal
         // out can open onto the page. The failsafe is no use now that setup has worked.
         veil.setAttribute("data-live", "")
