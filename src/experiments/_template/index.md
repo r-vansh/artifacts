@@ -2,11 +2,13 @@
 # Copy this folder to src/experiments/<slug>/ (no underscore) to post a new entry.
 title: Untitled experiment
 date: 2026-01-01
-summary: One sentence, 140 characters max. Shown on the card.
+summary: One sentence, 140 characters max. Shown on the entry page and in the feeds.
 tags: [generative]          # game, sound, motion, type, ui, visual, generative, failed
 kind: interactive           # interactive, visual, video, external, writeup
 status: sketch              # playable, sketch, retired
-poster: ./poster.png        # npm run poster -- <slug> grabs one from the running experiment
+poster: ./poster.png        # npm run poster -- <slug> grabs one; cards show it square, cropped to fill
+# ratio: 1                  # placeholder instead of a poster (drawn as a solid fill); still required, but cards are square anyway
+# fill: "var(--gray-200)"
 posterAlt: Describe what the poster shows
 # url: https://...          # required when kind is external
 # source: https://github.com/r-vansh/artifacts/tree/main/src/experiments/<slug>

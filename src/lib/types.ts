@@ -8,6 +8,10 @@ export interface Experiment {
     resume(): void
     /** Tear down for good: cancel frames, remove listeners, close audio, end workers. */
     stop(): void
+    /** Optional: play an exit (a loader's reveal out); resolves when it's done. */
+    out?(): Promise<void>
+    /** Optional: fade the sound out over `seconds`; resolves when it is silent */
+    fade?(seconds: number): Promise<void>
 }
 
 export type Mount<Options = Record<string, unknown>> = (

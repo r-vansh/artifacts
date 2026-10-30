@@ -16,7 +16,7 @@ const { tag, items } = Astro.props
 ---
 
 <Base title={tag} description={`art/facts experiments tagged ${tag}.`}>
-    <main class="wrap">
+    <main class="wrap" data-barba="container" data-barba-namespace="tag">
         <section class="intro">
             <h1>{tag}</h1>
             <a href="/">All experiments</a>

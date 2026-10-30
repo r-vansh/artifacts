@@ -1,7 +1,8 @@
 ---
-// Three staggered columns, as in the design. Entries are dealt left to right
-// (newest first), so reading across a row follows the order they were posted.
-// On narrow screens the columns dissolve into one list in that same order.
+// The cards, featured then newest first, in a plain grid of square posters with each post's
+// number above it (Figma frame 3180:17526: five across the content width, 80px between
+// columns, 160px between rows at 1440 wide). Fewer columns on smaller screens: 4 under
+// 1200px, 3 under 900px, 2 under 600px, the gaps scaling down with the page.
 import Card from "./Card.astro"
 import type { Entry } from "../lib/entries"
 
@@ -10,47 +11,34 @@ interface Props {
 }
 
 const { items } = Astro.props
-const columns = [0, 1, 2].map((c) => items.map((item, i) => ({ ...item, i })).filter(({ i }) => i % 3 === c))
 ---
 
 <div class="grid">
-    {
-        columns.map((col, c) => (
-            <div class:list={["col", `col-${c}`]}>
-                {col.map(({ entry, number, i }) => (
-                    <Card entry={entry} number={number} eager={i < 3} order={i} />
-                ))}
-            </div>
-        ))
-    }
+    {items.map(({ entry, number }, i) => <Card entry={entry} number={number} eager={i < 5} />)}
 </div>
 
 <style>
     .grid {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: var(--gap);
+        grid-template-columns: repeat(5, minmax(0, 1fr));
         align-items: start;
+        /* 80px and 160px at 1440 wide */
+        column-gap: clamp(24px, 5.556vw, 80px);
+        row-gap: clamp(48px, 11.111vw, 160px);
     }
-    .col {
-        display: flex;
-        flex-direction: column;
-        gap: var(--gap);
-    }
-    /* The design's stagger: middle column highest, right column lowest */
-    .col-0 {
-        margin-top: calc(100 / 1440 * 100vw);
-    }
-    .col-2 {
-        margin-top: calc(166 / 1440 * 100vw);
-    }
-    @media (max-width: 720px) {
+    @media (max-width: 1199px) {
         .grid {
-            display: flex;
-            flex-direction: column;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
         }
-        .col {
-            display: contents;
+    }
+    @media (max-width: 899px) {
+        .grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+    }
+    @media (max-width: 599px) {
+        .grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
         }
     }
 </style>

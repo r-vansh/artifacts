@@ -16,17 +16,25 @@ const experiments = defineCollection({
                 tags: z.array(z.enum(TAGS)).min(1),
                 kind: z.enum(["interactive", "visual", "video", "external", "writeup"]),
                 status: z.enum(["playable", "sketch", "retired"]),
-                poster: image(),
-                posterAlt: z.string(),
+                // Real entries have a poster image; a placeholder can use a solid fill instead
+                poster: image().optional(),
+                posterAlt: z.string().default(""),
+                ratio: z.number().positive().optional(),
+                fill: z.string().default("var(--gray-200)"),
+                // More media shown under the stage: an image, or a solid block with a ratio (height / width)
+                gallery: z
+                    .array(z.object({ image: image().optional(), alt: z.string().default(""), ratio: z.number().positive().default(0.75), fill: z.string().default("var(--gray-100)") }))
+                    .default([]),
                 preview: z.string().optional(),
                 url: z.url().optional(),
                 source: z.url().optional(),
                 sound: z.boolean().default(false),
                 inPortfolio: z.url().optional(),
                 featured: z.boolean().default(false),
-                background: z.string().default("var(--bg)"),
+                background: z.string().default("var(--gray-50)"),
             })
-            .refine((d) => d.kind !== "external" || d.url, { message: "external entries need a url" }),
+            .refine((d) => d.kind !== "external" || d.url, { message: "external entries need a url" })
+            .refine((d) => d.poster || d.ratio, { message: "entries need a poster, or a ratio (height / width) for a solid fill" }),
 })
 
 export const collections = { experiments }

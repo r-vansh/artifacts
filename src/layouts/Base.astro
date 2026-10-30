@@ -32,9 +32,24 @@ const here = Astro.url.pathname
     <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <script is:inline define:vars={{ dev: import.meta.env.DEV }}>
+            // The loading animation (src/lib/splash.ts) plays on the first page of a visit, so
+            // the veil it plays on has to be up before the first paint. Every load under
+            // `npm run dev`; never under reduced motion or in a tab opened in the background.
+            try {
+                if (
+                    matchMedia("(prefers-reduced-motion: no-preference)").matches &&
+                    document.visibilityState === "visible" &&
+                    (dev || !sessionStorage.getItem("splash"))
+                ) {
+                    sessionStorage.setItem("splash", "1")
+                    document.documentElement.setAttribute("data-splash", "")
+                }
+            } catch {}
+        </script>
         <title>{fullTitle}</title>
         <meta name="description" content={description} />
-        <meta name="theme-color" content="#f6f6f6" />
+        <meta name="theme-color" content="#f7f7f8" />
         <link rel="canonical" href={canonical} />
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <link rel="preload" href="/fonts/geist.woff2" as="font" type="font/woff2" crossorigin />
@@ -48,7 +63,8 @@ const here = Astro.url.pathname
         {image && <meta property="og:image" content={new URL(image, Astro.site)} />}
         <meta name="twitter:card" content={image ? "summary_large_image" : "summary"} />
     </head>
-    <body>
+    <body data-barba="wrapper">
+        <div class="splash" aria-hidden="true"></div>
         <header class="top">
             <a href="https://vanshrastogi.me" aria-label="Vansh Rastogi, portfolio" class="mark"><Logo height={32} /></a>
         </header>
@@ -69,7 +85,66 @@ const here = Astro.url.pathname
     </body>
 </html>
 
+<script>
+    import "../lib/nav"
+
+    // The loading animation, when the head script picked this page for it. It is a lazy
+    // chunk; if it fails to load, the veil goes at once.
+    const root = document.documentElement
+    if (root.hasAttribute("data-splash"))
+        import("../lib/splash").catch(() => {
+            root.removeAttribute("data-splash")
+            document.dispatchEvent(new Event("splash:done"))
+        })
+</script>
+
 <style>
+    /* The veil the loading animation plays on (src/lib/splash.ts), over everything. Its
+       white (the brief asks for pure white) is a layer of its own so it can lift while the
+       strokes fade over the page. If the animation never starts, it lifts on its own after
+       5 s. */
+    .splash {
+        display: none;
+    }
+    :global(html[data-splash]) .splash {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        animation: splash-failsafe 0.5s 5s forwards;
+    }
+    /* The home page's dev-only tuning panel stays out of the loader's way */
+    :global(html[data-splash] .tune) {
+        display: none;
+    }
+    .splash[data-live]::before {
+        display: none;
+    }
+    .splash::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: var(--white);
+        transition: opacity var(--lift, 0.7s) ease-out;
+    }
+    .splash[data-lift] {
+        pointer-events: none;
+    }
+    .splash[data-lift]::before {
+        opacity: 0;
+    }
+    .splash :global(canvas) {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+    }
+    @keyframes splash-failsafe {
+        to {
+            opacity: 0;
+            visibility: hidden;
+        }
+    }
     .top {
         display: flex;
         justify-content: center;
@@ -77,7 +152,7 @@ const here = Astro.url.pathname
     }
     .mark {
         display: inline-flex;
-        color: #000;
+        color: var(--black);
     }
     .mark:hover {
         color: var(--primary);
@@ -89,7 +164,7 @@ const here = Astro.url.pathname
         align-items: flex-start;
         gap: 16px;
         margin-top: clamp(80px, 11.1vw, 160px);
-        border-top: 1px solid var(--gray-200);
+        border-top: 1px dashed var(--gray-200);
         padding-bottom: 0;
     }
     nav {

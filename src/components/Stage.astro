@@ -14,17 +14,22 @@ const d = entry.data
 ---
 
 <div class:list={["stage", { full }]} data-stage data-slug={entry.id} data-state="poster" style={`--stage-bg: ${d.background}`}>
-    <Picture
-        src={d.poster}
-        alt={d.posterAlt}
-        formats={["avif", "webp"]}
-        widths={[720, 1080, 1600]}
-        sizes="100vw"
-        loading="eager"
-        fetchpriority="high"
-        class="poster"
-        style={`view-transition-name: poster-${entry.id}`}
-    />
+    {
+        d.poster ? (
+            <Picture
+                src={d.poster}
+                alt={d.posterAlt}
+                formats={["avif", "webp"]}
+                widths={[720, 1080, 1600]}
+                sizes="100vw"
+                loading="eager"
+                fetchpriority="high"
+                class="poster"
+            />
+        ) : (
+            <div class="poster" style={`background: ${d.fill}`} />
+        )
+    }
     <canvas aria-label={`${d.title}, interactive`}></canvas>
     <button type="button" class="play" data-play>Motion is reduced on this device. Play anyway</button>
     <p class="error" role="status">This one didn't start in your browser. The poster shows what it looks like.</p>
@@ -41,7 +46,7 @@ const d = entry.data
         min-height: 360px;
         background: var(--stage-bg);
         overflow: hidden;
-        border: 1px solid var(--card-line);
+        border: 1px dashed var(--gray-200);
     }
     .stage.full {
         height: 100vh;
@@ -76,9 +81,9 @@ const d = entry.data
         margin: 0;
         padding: 8px 14px;
         border-radius: 999px;
-        border: 1px solid var(--gray-200);
-        background: var(--bg);
-        color: var(--fg);
+        border: 1px dashed var(--gray-200);
+        background: var(--gray-50);
+        color: var(--gray-main);
         display: none;
         width: max-content;
         max-width: calc(100% - 32px);

@@ -15,10 +15,16 @@
   "dependencies": {
     "@astrojs/rss": "^4.0.19",
     "@astrojs/sitemap": "^3.7.4",
-    "astro": "^7.4.1"
+    "@barba/core": "^2.10.3",
+    "astro": "^7.4.1",
+    "gsap": "^3.15.0",
+    "lil-gui": "^0.21.0",
+    "p5": "^2.3.4",
+    "three": "^0.186.1"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.11",
+    "@types/three": "^0.186.0",
     "playwright-core": "^1.56.1",
     "typescript": "^5.9.3"
   }

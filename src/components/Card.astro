@@ -1,94 +1,74 @@
 ---
 import { Picture } from "astro:assets"
-import { href, isoDate, pad, type Entry } from "../lib/entries"
+import { href, ratioOf, type Entry } from "../lib/entries"
 
 interface Props {
     entry: Entry
     number: number
-    order: number
     eager?: boolean
 }
 
-const { entry, number, order, eager = false } = Astro.props
+const { entry, number, eager = false } = Astro.props
 const d = entry.data
 const external = d.kind === "external"
 ---
 
-<article class="card" style={`order: ${order}`}>
-    <a href={href(entry)} {...external ? { rel: "noopener" } : {}}>
-        <Picture
-            src={d.poster}
-            alt={d.posterAlt}
-            formats={["avif", "webp"]}
-            widths={[420, 640, 840, 1260]}
-            sizes="(min-width: 721px) 30vw, 100vw"
-            loading={eager ? "eager" : "lazy"}
-            fetchpriority={eager ? "high" : "auto"}
-            style={`view-transition-name: poster-${entry.id}`}
-        />
-        <div class="label">
-            <h2>{d.title}{external && <span aria-label="opens another site"> ↗</span>}</h2>
-            <p>
-                <span>{pad(number)}</span>
-                <time datetime={isoDate(d.date)}>{isoDate(d.date)}</time>
-            </p>
-        </div>
+<article class="card" style={`--ratio: ${ratioOf(entry)}`}>
+    <p class="number">{String(number).padStart(3, "0")}</p>
+    <a href={href(entry)} {...(external ? { rel: "noopener" } : {})}>
+        {
+            d.poster ? (
+                <Picture
+                    src={d.poster}
+                    alt={d.posterAlt}
+                    formats={["avif", "webp"]}
+                    widths={[420, 640, 840, 1260]}
+                    sizes="(min-width: 1200px) 20vw, (min-width: 900px) 25vw, (min-width: 600px) 33vw, 50vw"
+                    loading={eager ? "eager" : "lazy"}
+                    fetchpriority={eager ? "high" : "auto"}
+                />
+            ) : (
+                <div class="fill" style={`aspect-ratio: 1 / var(--ratio); background: ${d.fill}`} />
+            )
+        }
+        <span class="sr-only">{d.title}{external && " (opens another site)"}</span>
     </a>
 </article>
 
 <style>
+    /* The post's running number above its poster (Figma frame 3180:17526) */
+    .number {
+        margin: 0 0 8px;
+        font-weight: 300;
+        font-size: 12px;
+        line-height: 1;
+        letter-spacing: 0;
+        color: var(--gray-900);
+    }
+    /* The square the poster sits in, Gray/200 while it loads */
     .card a {
         position: relative;
         display: block;
-        background: var(--card);
-        border: 1px solid var(--card-line);
+        background: var(--gray-200);
         overflow: hidden;
     }
     .card :global(img) {
+        display: block;
+        width: 100%;
+        height: auto;
+        aspect-ratio: 1 / var(--ratio);
+        object-fit: cover;
+    }
+    .fill {
         width: 100%;
     }
-    /* The design shows posters only; the title appears on hover and focus,
-       and stays visible on touch screens where there is no hover */
-    .label {
+    /* The design shows posters only; the title stays for screen readers */
+    .sr-only {
         position: absolute;
-        inset: auto 0 0 0;
-        display: flex;
-        justify-content: space-between;
-        align-items: baseline;
-        gap: 12px;
-        padding: 10px 12px;
-        background: var(--bg);
-        border-top: 1px solid var(--card-line);
-        translate: 0 100%;
-        transition: translate 0.2s ease;
-    }
-    .card a:hover .label,
-    .card a:focus-visible .label {
-        translate: 0 0;
-    }
-    @media (hover: none) {
-        .label {
-            position: static;
-            translate: none;
-        }
-    }
-    h2 {
-        margin: 0;
-        font-size: 16px;
-        font-weight: 400;
-        line-height: 1.2;
-    }
-    p {
-        margin: 0;
-        display: flex;
-        gap: 12px;
-        color: var(--gray-500);
-        font-size: 14px;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
         white-space: nowrap;
-    }
-    @media (prefers-reduced-motion: reduce) {
-        .label {
-            transition: none;
-        }
     }
 </style>

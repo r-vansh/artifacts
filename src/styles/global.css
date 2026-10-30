@@ -14,23 +14,30 @@
 
 /* Tokens from the Figma file (Personal Portfolio → Artifacts) */
 :root {
-    --bg: #f6f6f6;
-    --fg: #000;
-    --gray-500: #8e8e95;
-    --gray-200: #dddddf;
-    --card: #efefef;
-    --card-line: #d7d7d7;
+    /* Color styles from the Figma file (Personal Portfolio): Primary (5) and Gray (11) */
     --primary: #fb4300;
+    --primary-400: #ff662e;
+    --primary-300: #ff8b61;
+    --primary-200: #ffb094;
+    --primary-100: #ffd6c7;
+    --gray-main: #101011;
+    --gray-900: #2a2a2d;
+    --gray-800: #434347;
+    --gray-700: #5c5c61;
+    --gray-600: #74747b;
+    --gray-500: #8e8e95;
+    --gray-400: #a8a8ad;
+    --gray-300: #c3c3c6;
+    --gray-200: #dddddf;
+    --gray-100: #ededee;
+    --gray-50: #f7f7f8;
+    --white: #ffffff;
+    --black: #000000;
     --sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
     --pixel: "Geist Pixel Circle", var(--sans);
     /* 64px at 1440 wide, scaling down to 16px on phones */
     --edge: clamp(16px, 4.444vw, 64px);
-    --gap: clamp(12px, 1.667vw, 24px);
-}
-
-/* Smooth page changes with no JS, where the browser supports it */
-@view-transition {
-    navigation: auto;
+    --gap: 24px;
 }
 
 *,
@@ -46,20 +53,30 @@ html {
 body {
     margin: 0;
     min-height: 100vh;
-    background-color: var(--bg);
-    /* The two vertical guide lines, 64px in from each side */
-    background-image:
-        linear-gradient(var(--gray-200), var(--gray-200)),
-        linear-gradient(var(--gray-200), var(--gray-200));
-    background-size: 1px 100%;
-    background-position:
-        var(--edge) 0,
-        calc(100% - var(--edge)) 0;
-    background-repeat: no-repeat;
-    color: var(--fg);
+    position: relative;
+    background-color: var(--gray-50);
+    color: var(--gray-main);
     font: 400 16px/1.3 var(--sans);
     letter-spacing: -0.03em;
     -webkit-font-smoothing: antialiased;
+}
+
+/* The two vertical guide lines, 64px in from each side, behind the content */
+body::before,
+body::after {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    top: 0;
+    bottom: 0;
+    border-left: 1px dashed var(--gray-200);
+    pointer-events: none;
+}
+body::before {
+    left: var(--edge);
+}
+body::after {
+    right: var(--edge);
 }
 
 a {
@@ -85,7 +102,7 @@ img {
 /* A full-width hairline, like the horizontal rules in the design */
 .rule {
     border: 0;
-    border-top: 1px solid var(--gray-200);
+    border-top: 1px dashed var(--gray-200);
     margin: 0;
 }
 
@@ -103,10 +120,4 @@ img {
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
-}
-
-@media (prefers-reduced-motion: reduce) {
-    @view-transition {
-        navigation: none;
-    }
 }

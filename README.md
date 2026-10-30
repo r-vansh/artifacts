@@ -17,10 +17,24 @@ Node 22.22 or newer.
 1. Copy `src/experiments/_template` to `src/experiments/<slug>` (no leading underscore).
 2. Write `main.ts`: a `mount(canvas, options)` function that returns `pause`, `resume` and `stop`. No framework needed. `src/experiments/game-of-life/main.ts` is a full example ported from a Framer component.
 3. Fill in the frontmatter in `index.md` and write a short note.
-4. `npm run build && npm run poster -- <slug>` grabs `poster.png` from the running canvas. Rebuild.
-5. Push a branch: Cloudflare Pages gives it a preview URL. Merge to publish.
+4. `npm run build && npm run poster -- <slug>` grabs `poster.png` from the running canvas. Rebuild. Every card shows its poster as a square (cropped to fill), so keep the important part in the middle.
+5. Push to `main`, then publish by hand: Actions → Deploy → Run workflow (see Deploy below).
 
 The build fails if the frontmatter is wrong (unknown tag, summary over 140 characters, missing poster) or if a page goes over budget.
+
+## The index grid
+
+A plain grid of square posters, five across on wide screens (4, 3 and 2 on smaller ones), each with the post's number above it, after the Figma frame 3180:17526. It is CSS only, so it looks the same with or without JS. The rules are in `CLAUDE.md` ("Index grid").
+
+## The loading animation
+
+On the first page of a visit, the Flow Field experiment covers the page full screen, faint, until a click (or Enter/Space). Then it draws itself in and opens through to the page, and the loader is gone within 3.9 s of that click (about 3.7 s in practice). It plays once per tab session, on every load under `npm run dev`, and never under reduced motion or without JS. It is `src/lib/splash.ts`, a lazy chunk that `Base.astro` loads, mounting `src/experiments/flow-field` with no tuning panel. Details are in `CLAUDE.md` ("Loading animation").
+
+## The intro effect
+
+On the home page, scrolling makes the "ART/facts" heading and the line under it slide together, crumble into orange particles from where they meet, and stream to the pointer, where they vanish. Scrolling back up brings them out of the pointer and rebuilds the text. It lives in `src/lib/intro.ts` and loads after the page is idle, so it stays out of the first load.
+
+To tune it, run `npm run dev` and use the panel on the right of the home page: every setting has a slider and applies live. "Copy values" puts them on the clipboard; paste them over `params` near the top of `intro.ts` to make them the defaults. The panel only exists in dev and is not in the build. What each stage does, and what has been tried, is in `CLAUDE.md` ("Intro effect").
 
 ## Rules every experiment follows
 
@@ -50,10 +64,12 @@ Checked by `scripts/budget.mjs` on every build (gzipped sizes) and by Lighthouse
 ```
 src/
   experiments/<slug>/   index.md, main.ts, poster.png
-  components/           Card, Grid, Stage, TagBar
+  components/           Card, Contact, Grid, Stage
   layouts/Base.astro
-  lib/                  stage.ts (loader), types.ts (the mount contract), entries.ts
-  pages/                index, x/[slug], x/[slug]/play, tags/[tag], rss.xml, llms.txt
+  lib/                  stage.ts (loader), types.ts (the mount contract), entries.ts,
+                        intro.ts (the heading's scroll burst), tune.ts (its dev-only panel),
+                        splash.ts (the loading animation), nav.ts + barba.ts (page swaps)
+  pages/                index, [slug], [slug]/play, tags/[tag], rss.xml, llms.txt
 scripts/                budget.mjs, poster.mjs
 ```
 

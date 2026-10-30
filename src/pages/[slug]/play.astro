@@ -1,8 +1,8 @@
 ---
 // Stage only, no site chrome: for fullscreen and for embedding in the portfolio
-import "../../../styles/global.css"
-import Stage from "../../../components/Stage.astro"
-import { getEntries } from "../../../lib/entries"
+import "../../styles/global.css"
+import Stage from "../../components/Stage.astro"
+import { getEntries } from "../../lib/entries"
 
 export async function getStaticPaths() {
     const items = await getEntries()
@@ -20,11 +20,12 @@ const { entry } = Astro.props
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>{entry.data.title} · art/facts</title>
-        <link rel="canonical" href={new URL(`/x/${entry.id}`, Astro.site)} />
+        <link rel="canonical" href={new URL(`/${entry.id}`, Astro.site)} />
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <style is:global>
-            body {
-                background-image: none;
+            body::before,
+            body::after {
+                display: none;
             }
         </style>
     </head>

@@ -2,13 +2,18 @@
 // Sizes are gzipped, since that's what visitors download.
 import { readFile, readdir, stat } from "node:fs/promises"
 import { gzipSync } from "node:zlib"
-import { join, relative } from "node:path"
+import { basename, join, relative } from "node:path"
 
 const KB = 1024
 const BUDGET = {
     html: 30 * KB, // a page's HTML with its inlined CSS
     pageJs: 5 * KB, // JS a page loads before any experiment
     experiment: 60 * KB, // one experiment's own chunk
+    // The loading animation's lazy chunk carries p5.js (its core and math modules, about
+    // 121 KB); Vansh chose p5 over plain canvas, knowing it needs this
+    splash: 130 * KB,
+    // An experiment that bundles Three.js (Flow Field); it loads only when its stage is on screen
+    webglExperiment: 200 * KB,
     font: 30 * KB,
 }
 
@@ -62,7 +67,10 @@ for (const f of files.filter((f) => f.endsWith(".html"))) {
 }
 
 for (const f of jsFiles.filter((f) => !loaderOrShared.has(f))) {
-    check(`experiment ${relative("dist", f)}`, gz(await readFile(f)), BUDGET.experiment)
+    const splash = /^splash\./.test(basename(f))
+    const src = await readFile(f)
+    const limit = splash ? BUDGET.splash : src.includes("__THREE__") ? BUDGET.webglExperiment : BUDGET.experiment
+    check(`${splash ? "splash" : "experiment"} ${relative("dist", f)}`, gz(src), limit)
 }
 
 for (const f of files.filter((f) => f.endsWith(".woff2"))) {

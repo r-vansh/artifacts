@@ -13,9 +13,13 @@ export async function getEntries() {
     return sorted.map((entry) => ({ entry, number: number.get(entry.id)! }))
 }
 
+/** Height / width an entry's card (and the first block on its page) is shown at. Every card
+ *  is square for now, posters are cropped to fit; the entry's own `ratio` is not used. */
+export const ratioOf = (_e: Entry) => 1
+
 export const pad = (n: number) => `#${String(n).padStart(3, "0")}`
 
 export const isoDate = (d: Date) => d.toISOString().slice(0, 10)
 
 /** Where a card links: the entry page, or straight out for external entries. */
-export const href = (e: Entry) => (e.data.kind === "external" ? e.data.url! : `/x/${e.id}`)
+export const href = (e: Entry) => (e.data.kind === "external" ? e.data.url! : `/${e.id}`)

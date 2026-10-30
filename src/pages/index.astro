@@ -7,8 +7,8 @@ const items = await getEntries()
 ---
 
 <Base>
-    <main class="wrap">
-        <section class="intro">
+    <main class="wrap" data-barba="container" data-barba-namespace="home">
+        <section class="intro" data-burst>
             <h1>ART/facts</h1>
             <p>These are the experiments I built over time learning tools, workflows, tricks.</p>
         </section>
@@ -16,8 +16,23 @@ const items = await getEntries()
     </main>
 </Base>
 
+<script>
+    // The intro effect is not needed before the page scrolls, so it loads once the page is
+    // idle (or on the first scroll, if that comes sooner) and stays out of the first load.
+    // While the loading animation plays (splash.ts) the idle load waits for it to end, so
+    // sampling the text cannot stall it
+    const load = () => import("../lib/intro")
+    const idle = () => ("requestIdleCallback" in window ? requestIdleCallback(load, { timeout: 1500 }) : setTimeout(load, 200))
+    if (document.documentElement.hasAttribute("data-splash")) document.addEventListener("splash:done", idle, { once: true })
+    else idle()
+    addEventListener("scroll", load, { once: true, passive: true })
+    // The tuning panel for the particles, only under `npm run dev`
+    if (import.meta.env.DEV) import("../lib/tune")
+</script>
+
 <style>
     .intro {
+        position: relative;
         display: flex;
         flex-wrap: wrap;
         justify-content: space-between;
@@ -26,6 +41,28 @@ const items = await getEntries()
         padding-top: clamp(96px, 17.4vw, 250px);
         margin-bottom: clamp(48px, 12.6vw, 182px);
     }
+    /* On wider screens the heading sits at 35% of the screen height and the grid starts at
+       75%, so the first screen shows the intro with the top of the posts peeking in below it.
+       56px is the logo header above <main> (24px padding + 32px mark). Phones keep the roomy
+       spacing above. */
+    @media (min-width: 900px) {
+        .intro {
+            box-sizing: border-box;
+            min-height: calc(75svh - 56px);
+            padding-top: calc(35svh - 56px);
+            margin-bottom: 0;
+        }
+    }
+    /* The particles the heading and line burst into (src/lib/intro.ts); they cover the window
+       because after the burst they follow the pointer anywhere */
+    .intro :global(.burst) {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1;
+        pointer-events: none;
+    }
     h1 {
         margin: 0;
         font-family: var(--pixel);
@@ -33,7 +70,7 @@ const items = await getEntries()
         font-size: clamp(36px, 3.333vw, 48px);
         line-height: 1;
         letter-spacing: -0.03em;
-        color: var(--gray-500);
+        color: var(--gray-900);
     }
     p {
         margin: 7px 0 0;
@@ -42,6 +79,6 @@ const items = await getEntries()
         font-weight: 300;
         line-height: 1.3;
         text-align: justify;
-        color: var(--gray-500);
+        color: var(--gray-600);
     }
 </style>

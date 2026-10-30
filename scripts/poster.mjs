@@ -30,7 +30,7 @@ const candidates = [process.env.CHROME_PATH, "/opt/pw-browsers/chromium-1194/chr
 const executablePath = candidates.find((p) => p && existsSync(p))
 const browser = await chromium.launch({ executablePath })
 const page = await browser.newPage({ viewport: { width: 1600, height: 1200 }, deviceScaleFactor: 1 })
-await page.goto(`http://localhost:${port}/x/${slug}/play`)
+await page.goto(`http://localhost:${port}/${slug}/play`)
 await page.waitForSelector('[data-state="live"]', { timeout: 10000 })
 await page.waitForTimeout(Number(wait) * 1000)
 const png = await page.locator("canvas").screenshot()
