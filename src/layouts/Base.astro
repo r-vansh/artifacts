@@ -149,10 +149,11 @@ const here = Astro.url.pathname
             visibility: hidden;
         }
     }
+    /* The logo sits on the left guide line (Figma frame 3203:17832) */
     .top {
         display: flex;
-        justify-content: center;
-        padding-top: 24px;
+        justify-content: flex-start;
+        padding: 24px var(--edge) 0;
     }
     .mark {
         display: inline-flex;

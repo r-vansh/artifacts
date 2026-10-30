@@ -9,8 +9,10 @@ const items = await getEntries()
 <Base>
     <main class="wrap" data-barba="container" data-barba-namespace="home">
         <section class="intro" data-burst>
-            <h1>ART/facts</h1>
-            <p>These are the experiments I built over time learning tools, workflows, tricks.</p>
+            <div class="box">
+                <h1>ART/FACTS</h1>
+                <p>These are the experiments I built over time learning tools, workflows, tricks.</p>
+            </div>
         </section>
         <Grid items={items} />
     </main>
@@ -31,27 +33,28 @@ const items = await getEntries()
 </script>
 
 <style>
+    /* The heading and its line sit in a hairline box in the middle of the page (Figma frame
+       3203:17832), with 240px at 1440 wide above it (under the 56px logo header) and 240px
+       below it before the grid (Vansh, 2026-10-31: 160px, then 240px; the frame has 120px and 117px) */
     .intro {
         position: relative;
         display: flex;
-        flex-wrap: wrap;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 24px;
-        padding-top: clamp(96px, 17.4vw, 250px);
-        margin-bottom: clamp(48px, 12.6vw, 182px);
+        justify-content: center;
+        padding-top: clamp(64px, 16.667vw, 240px);
+        margin-bottom: clamp(64px, 16.667vw, 240px);
     }
-    /* On wider screens the heading sits at 35% of the screen height and the grid starts at
-       75%, so the first screen shows the intro with the top of the posts peeking in below it.
-       56px is the logo header above <main> (24px padding + 32px mark). Phones keep the roomy
-       spacing above. */
-    @media (min-width: 900px) {
-        .intro {
-            box-sizing: border-box;
-            min-height: calc(75svh - 56px);
-            padding-top: calc(35svh - 56px);
-            margin-bottom: 0;
-        }
+    /* The box's line fades with the real text while the particles stand in for it
+       (--frame is set by src/lib/intro.ts) */
+    .box {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: center;
+        gap: 24px 80px;
+        box-sizing: border-box;
+        max-width: 100%;
+        padding: 24px;
+        border: 1px solid color-mix(in srgb, var(--gray-100) calc(var(--frame, 1) * 100%), transparent);
     }
     /* The particles the heading and line burst into (src/lib/intro.ts); they cover the window
        because after the burst they follow the pointer anywhere */
@@ -67,18 +70,18 @@ const items = await getEntries()
         margin: 0;
         font-family: var(--pixel);
         font-weight: 400;
-        font-size: clamp(36px, 3.333vw, 48px);
+        font-size: 32px;
         line-height: 1;
         letter-spacing: -0.03em;
-        color: var(--gray-900);
+        color: var(--gray-main);
     }
     p {
-        margin: 7px 0 0;
-        width: 317px;
+        margin: 0;
+        width: 254px;
         max-width: 100%;
         font-weight: 300;
         line-height: 1.3;
         text-align: justify;
-        color: var(--gray-600);
+        color: var(--gray-700);
     }
 </style>

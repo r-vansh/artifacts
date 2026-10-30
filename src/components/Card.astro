@@ -6,15 +6,20 @@ interface Props {
     entry: Entry
     number: number
     eager?: boolean
+    /** Column counts for which a crosshair sits at this card's bottom right (see Grid.astro) */
+    crosses?: number[]
 }
 
-const { entry, number, eager = false } = Astro.props
+const { entry, number, eager = false, crosses = [] } = Astro.props
 const d = entry.data
 const external = d.kind === "external"
 ---
 
 <article class="card" style={`--ratio: ${ratioOf(entry)}`}>
-    <p class="number">{String(number).padStart(3, "0")}</p>
+    <p class="meta" aria-hidden="true">
+        <span class="number">.{String(number).padStart(3, "0")}</span>
+        <span class="title">{d.title}</span>
+    </p>
     <a href={href(entry)} {...(external ? { rel: "noopener" } : {})}>
         {
             d.poster ? (
@@ -33,17 +38,78 @@ const external = d.kind === "external"
         }
         <span class="sr-only">{d.title}{external && " (opens another site)"}</span>
     </a>
+    {crosses.map((n) => <span class={`cross n${n}`} aria-hidden="true" />)}
 </article>
 
 <style>
-    /* The post's running number above its poster (Figma frame 3180:17526) */
-    .number {
+    .card {
+        position: relative;
+    }
+    /* The dashed crosshair where four posters meet (Figma node 3208:17894), 38px, centred on
+       the middle of the gap: half the column gap to the right of this poster and half the row
+       gap (plus the 20px title row of the next one) under it. The column gap is what is left
+       of the row's width after the posters, so it also holds past 1440 where it grows. Shown
+       only for the number of columns the grid has at this width */
+    .cross {
+        --n: 5;
+        display: none;
+        position: absolute;
+        left: calc(100% + (100cqw - var(--n) * 100%) / (2 * (var(--n) - 1)) - 19px);
+        top: calc(100% + (var(--row-gap) + 20px) / 2 - 19px);
+        width: 38px;
+        height: 38px;
+        background: url("/crosshair.svg") no-repeat center / 38px 38px;
+        pointer-events: none;
+    }
+    .cross.n5 {
+        display: block;
+    }
+    @media (max-width: 1199px) {
+        .cross.n5 {
+            display: none;
+        }
+        .cross.n4 {
+            --n: 4;
+            display: block;
+        }
+    }
+    @media (max-width: 899px) {
+        .cross.n4 {
+            display: none;
+        }
+        .cross.n3 {
+            --n: 3;
+            display: block;
+        }
+    }
+    @media (max-width: 599px) {
+        .cross.n3 {
+            display: none;
+        }
+        .cross.n2 {
+            --n: 2;
+            display: block;
+        }
+    }
+    /* The post's running number and title above its poster (Figma frame 3203:17832): Geist
+       Pixel Circle 12px in Gray/900, number left, title right, 8px above the poster */
+    .meta {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
         margin: 0 0 8px;
-        font-weight: 300;
+        font-family: var(--pixel);
         font-size: 12px;
         line-height: 1;
-        letter-spacing: 0;
+        letter-spacing: -0.03em;
+        text-transform: lowercase;
+        white-space: nowrap;
         color: var(--gray-900);
+    }
+    .title {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
     /* The square the poster sits in, Gray/200 while it loads */
     .card a {

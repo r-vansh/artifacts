@@ -1,8 +1,11 @@
 ---
 // The cards, featured then newest first, in a plain grid of square posters with each post's
-// number above it (Figma frame 3180:17526: five across the content width, 80px between
-// columns, 160px between rows at 1440 wide). Fewer columns on smaller screens: 4 under
-// 1200px, 3 under 900px, 2 under 600px, the gaps scaling down with the page.
+// number and title above it (Figma frame 3203:17832: five across the content width, 240px
+// between rows at 1440 wide). Never more than five a row; Vansh asked for smaller posts
+// (2026-10-31), so the column gap is 128px at 1440 instead of the frame's 80px, which makes
+// the posters 160px instead of 198px while the row still spans guide to guide. Fewer
+// columns on smaller screens: 4 under 1200px, 3 under 900px, 2 under 600px, the gaps scaling
+// down with the page. Past 1440 wide the posters stay 160px and the gaps between them grow.
 import Card from "./Card.astro"
 import type { Entry } from "../lib/entries"
 
@@ -11,10 +14,15 @@ interface Props {
 }
 
 const { items } = Astro.props
+// A crosshair sits where four posters meet (Figma node 3208:17894): at the bottom right of a
+// card that has a neighbour to its right, one below and one below-right, for each possible
+// number of columns
+const COLUMNS = [5, 4, 3, 2]
+const crosses = (i: number) => COLUMNS.filter((n) => i % n < n - 1 && i + n + 1 < items.length)
 ---
 
 <div class="grid">
-    {items.map(({ entry, number }, i) => <Card entry={entry} number={number} eager={i < 5} />)}
+    {items.map(({ entry, number }, i) => <Card entry={entry} number={number} eager={i < 5} crosses={crosses(i)} />)}
 </div>
 
 <script>
@@ -22,39 +30,79 @@ const { items } = Astro.props
 </script>
 
 <style>
-    /* A post opens in a layer over the grid (src/lib/overlay.ts) */
+    /* A post opens in a panel over the grid (src/lib/overlay.ts): the layer is a dimmed
+       scrim, a click on it closes the post, and the post's <main> is the panel: 90vh tall, 16:9 where the window is wide enough, at most
+       90vh tall, centred, with its content scrolling inside it and no scrollbar showing. On
+       narrow screens it is not 16:9 (it would be a thin strip) but as tall as its content up
+       to 90vh */
     :global(.overlay) {
         position: fixed;
         inset: 0;
         z-index: 50;
-        overflow-y: auto;
-        overscroll-behavior: contain;
-        background: var(--white);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        background: color-mix(in srgb, var(--black) 28%, transparent);
+        backdrop-filter: blur(3px);
         opacity: 0;
-        transform: translateY(8px);
-        transition: opacity 0.25s ease-out, transform 0.25s ease-out;
+        transition: opacity 0.25s ease-out;
         outline: none;
     }
     :global(.overlay.on) {
         opacity: 1;
-        transform: none;
     }
     :global(.overlay.out) {
         opacity: 0;
     }
+    :global(.overlay > main.wrap) {
+        box-sizing: border-box;
+        flex: none;
+        width: calc(100% - 2 * var(--edge));
+        max-height: 90vh;
+        padding: clamp(24px, 3.333vw, 48px);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: none;
+        background: var(--gray-50);
+        border: 1px dashed var(--gray-200);
+        transform: translateY(8px);
+        transition: transform 0.25s ease-out;
+    }
+    :global(.overlay > main.wrap::-webkit-scrollbar) {
+        display: none;
+    }
+    @media (min-width: 900px) {
+        :global(.overlay > main.wrap) {
+            /* Always 90vh tall; as wide as 16:9 makes it (160vh) where the window is wide
+               enough, otherwise as wide as the guides allow, which breaks the ratio */
+            width: min(calc(100% - 2 * var(--edge)), 160vh);
+            height: 90vh;
+        }
+    }
+    :global(.overlay.on > main.wrap) {
+        transform: none;
+    }
     @media (prefers-reduced-motion: reduce) {
-        :global(.overlay) {
+        :global(.overlay),
+        :global(.overlay > main.wrap) {
             transition: none;
             transform: none;
         }
     }
     .grid {
+        /* Cards size the crosshairs' offsets from the row's width (cqw), and the row gap */
+        container-type: inline-size;
+        --row-gap: clamp(48px, 16.667vw, 240px);
         display: grid;
-        grid-template-columns: repeat(5, minmax(0, 1fr));
+        /* Posters stop growing at 160px (their size at 1440); on wider windows the row stays
+           guide to guide and the gaps between the posters grow instead */
+        grid-template-columns: repeat(5, minmax(0, 160px));
+        justify-content: space-between;
         align-items: start;
-        /* 80px and 160px at 1440 wide */
-        column-gap: clamp(24px, 5.556vw, 80px);
-        row-gap: clamp(48px, 11.111vw, 160px);
+        /* 128px and 240px at 1440 wide */
+        column-gap: clamp(24px, 8.889vw, 128px);
+        row-gap: var(--row-gap);
     }
     @media (max-width: 1199px) {
         .grid {

@@ -65,11 +65,11 @@ interface Dot {
 // out in this shape.
 export const params = {
     // The collision
-    approach: 0.25, // of the window height scrolled until the two collide
+    approach: 0.1, // of the window height scrolled until the two collide
     rush: 1.5, // how they pick up speed into each other: 1 steady, higher rushes in at the end
     glide: 120, // ms: how softly the slide follows the scroll
     blend: 0.2, // share of the approach over which the real text fades into the particle-drawn text (all particles by the touch)
-    crush: 0.15, // of the window height scrolled after they touch until they have crumbled away (0: all at once on touching)
+    crush: 0.1, // of the window height scrolled after they touch until they have crumbled away (0: all at once on touching)
     ragged: 16, // px: how uneven the line they crumble along is, short of the centre line (0: a straight cut on it)
     soft: 120, // px: how far from the centre line the blur reaches, from nothing out there to `blur` at the line (0: sharp)
     blur: 6, // px: how blurred the text is right at the centre line
@@ -207,7 +207,10 @@ function measure() {
     // Where they meet: side by side they close the gap on the centre line; stacked (phones)
     // they meet halfway between them, both centred
     const [a, b] = parts.map((el) => el.getBoundingClientRect())
-    const cx = width / 2
+    // Side by side they meet in the middle of the gap between them, so each travels half of
+    // it (the heading and the line are not equally wide, so that is not the page's centre);
+    // stacked, both centre on the page
+    const cx = b.left >= a.right ? (a.right + b.left) / 2 : width / 2
     const cy = (a.top + a.height / 2 + b.top + b.height / 2) / 2
     shift =
         b.left >= a.right
@@ -579,6 +582,8 @@ function step(now: number, dt: number) {
         el.style.transform = t ? `translate3d(${(shift[k].x * t).toFixed(1)}px,${(shift[k].y * t).toFixed(1)}px,0)` : ""
         el.style.opacity = veil > 0 ? (1 - veil).toFixed(3) : ""
     })
+    // The box round them lets go of its line as the text turns to particles, and takes it back
+    intro?.style.setProperty("--frame", (1 - veil).toFixed(3))
     ctx.clearRect(0, 0, cw, ch)
     if (veil <= 0) return busy
     const size = params.size
@@ -687,6 +692,7 @@ function stop() {
         el.style.transform = ""
         el.style.opacity = ""
     }
+    intro?.style.removeProperty("--frame")
     canvas?.remove()
     intro = canvas = ctx = null
     parts = []

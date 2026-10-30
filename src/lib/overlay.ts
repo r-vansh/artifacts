@@ -39,6 +39,8 @@ async function open(url: URL, from: HTMLElement) {
         layer.setAttribute("aria-label", doc.title)
         layer.tabIndex = -1
         layer.append(document.importNode(main, true))
+        // The scrim does not scroll, so a wheel over it must not scroll the page behind
+        layer.addEventListener("wheel", (e) => e.target === layer && e.preventDefault(), { passive: false })
         document.body.append(layer)
         siblings().forEach((el) => el.setAttribute("inert", ""))
 
@@ -91,6 +93,11 @@ addEventListener(
     "click",
     (e) => {
         if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+        // A click on the dimmed area round the panel closes it
+        if (layer && e.target === layer) {
+            e.preventDefault()
+            return dismiss()
+        }
         const a = (e.target as Element).closest?.<HTMLAnchorElement>("a[href]")
         if (!a) return
         if (layer?.contains(a) && a.classList.contains("back")) {
