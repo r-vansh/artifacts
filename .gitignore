@@ -6,3 +6,7 @@ dist/
 
 # Temporary masonry test entries
 src/experiments/test-*
+
+# Working notes, kept local
+sessions.md
+CLAUDE.md
