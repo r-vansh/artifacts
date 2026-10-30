@@ -17,7 +17,37 @@ const { items } = Astro.props
     {items.map(({ entry, number }, i) => <Card entry={entry} number={number} eager={i < 5} />)}
 </div>
 
+<script>
+    import "../lib/overlay"
+</script>
+
 <style>
+    /* A post opens in a layer over the grid (src/lib/overlay.ts) */
+    :global(.overlay) {
+        position: fixed;
+        inset: 0;
+        z-index: 50;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        background: var(--white);
+        opacity: 0;
+        transform: translateY(8px);
+        transition: opacity 0.25s ease-out, transform 0.25s ease-out;
+        outline: none;
+    }
+    :global(.overlay.on) {
+        opacity: 1;
+        transform: none;
+    }
+    :global(.overlay.out) {
+        opacity: 0;
+    }
+    @media (prefers-reduced-motion: reduce) {
+        :global(.overlay) {
+            transition: none;
+            transform: none;
+        }
+    }
     .grid {
         display: grid;
         grid-template-columns: repeat(5, minmax(0, 1fr));

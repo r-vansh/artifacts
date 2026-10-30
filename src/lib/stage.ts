@@ -10,6 +10,8 @@ const modules = import.meta.glob<{ default: Mount }>("../experiments/*/main.ts")
 const reduce = matchMedia("(prefers-reduced-motion: reduce)")
 const seen = new WeakSet<HTMLElement>()
 const cleanups = new Set<() => void>()
+// What stops one stage, so an overlay can let go of the stages inside it (see overlay.ts)
+const stops = new WeakMap<HTMLElement, () => void>()
 
 function fail(stage: HTMLElement, err: unknown) {
     console.error(err)
@@ -35,6 +37,7 @@ async function boot(stage: HTMLElement, canvas: HTMLCanvasElement) {
         exp?.stop()
     }
     cleanups.add(dispose)
+    stops.set(stage, dispose)
 
     try {
         // The loader is the same experiment and listens for the same click, so wait for it
@@ -79,6 +82,7 @@ function init() {
         })
         io.observe(stage)
         cleanups.add(() => io.disconnect())
+        stops.set(stage, () => io.disconnect())
     }
 }
 
@@ -87,4 +91,8 @@ document.addEventListener("nav:leave", () => {
     cleanups.clear()
 })
 document.addEventListener("nav:enter", init)
+document.addEventListener("overlay:open", init)
+document.addEventListener("overlay:close", (e) => {
+    for (const stage of (e as CustomEvent<HTMLElement>).detail.querySelectorAll<HTMLElement>("[data-stage]")) stops.get(stage)?.()
+})
 init()

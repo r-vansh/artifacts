@@ -44,6 +44,8 @@ const here = Astro.url.pathname
                 ) {
                     sessionStorage.setItem("splash", "1")
                     document.documentElement.setAttribute("data-splash", "")
+                    // Where the pointer is, so the loader's cursor can start there at once
+                    addEventListener("pointermove", (e) => (window.splashPointer = { x: e.clientX, y: e.clientY }), { passive: true })
                 }
             } catch {}
         </script>
@@ -108,6 +110,8 @@ const here = Astro.url.pathname
     }
     :global(html[data-splash]) .splash {
         display: block;
+        /* The loader draws its own cursor (the pill); the arrow is gone from the first paint */
+        cursor: none;
         position: fixed;
         inset: 0;
         z-index: 100;

@@ -269,6 +269,8 @@ export interface Options {
     gateTime: number
     /** The cursor label's size (px) */
     gateLabelSize: number
+    /** Where the pointer already is (px), so the label starts there instead of waiting for it to move */
+    gateAt: { x: number; y: number } | null
     /** A short buffer (s) between the click and the impact, so audio is ready to play it */
     gateDelay: number
     gateTransition: "dissolve" | "fade"
@@ -454,6 +456,7 @@ export const defaults: Options = {
     gateTouchText: "Tap anywhere to enter",
     gateTime: 0.6,
     gateLabelSize: 20,
+    gateAt: null,
     gateDelay: 0.25,
     gateTransition: "dissolve",
     soundOn: true,
@@ -923,6 +926,9 @@ const mount: Mount<Options> = (canvas, options) => {
     // Enter or Space unlocks sound, fades the faint ink out, and the loader plays from
     // the start at full strength.
     const touch = window.matchMedia?.("(hover: none)").matches ?? false
+    // The label is the cursor's stand-in (Figma node 3202:17823): a dark pill with a mouse
+    // icon and the text, 6px padding and a 4px gap, Geist Light 16px in Gray/100 on a
+    // gradient from Gray/700 to Gray/900, blurred a little behind and lifted by two shadows
     const label = document.createElement("div")
     Object.assign(label.style, {
         position: "fixed",
@@ -930,13 +936,26 @@ const mount: Mount<Options> = (canvas, options) => {
         top: "0",
         zIndex: "3",
         pointerEvents: "none",
-        font: `400 ${c.gateLabelSize}px/1 var(--sans, sans-serif)`,
-        letterSpacing: "0",
-        color: "var(--gray-700, #5c5c61)",
+        display: "flex",
+        alignItems: "center",
+        gap: "4px",
+        padding: "6px",
+        background: "linear-gradient(128.5deg, var(--gray-700, #5c5c61) 0%, var(--gray-800, #434347) 21%, var(--gray-900, #2a2a2d) 40%)",
+        backdropFilter: "blur(2.5px)",
+        filter: "drop-shadow(0 3px 2px color-mix(in srgb, var(--black, #000) 15%, transparent)) drop-shadow(0 14px 12px color-mix(in srgb, var(--black, #000) 15%, transparent))",
+        font: "300 16px/1 var(--sans, sans-serif)",
+        letterSpacing: "-0.03em",
+        textTransform: "lowercase",
+        color: "var(--gray-100, #ededee)",
         whiteSpace: "nowrap",
         opacity: "0",
         transition: "opacity 0.2s",
     })
+    // the mouse icon, 20 px: the body, its wheel and three click rays
+    label.innerHTML =
+        '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true" style="flex:none"><rect x="4.5" y="4.5" width="11" height="15" rx="5.5" stroke="currentColor"/><rect x="9" y="7" width="2" height="5" rx="1" fill="currentColor"/><rect x="9.5" y="0" width="1" height="3" rx=".5" fill="currentColor"/><rect x="5.503" y=".999" width="1" height="3" rx=".5" fill="currentColor" transform="rotate(-30 6.003 2.499)"/><rect x="12.503" y=".999" width="1" height="3" rx=".5" fill="currentColor" transform="rotate(30 13.003 2.499)"/></svg><span></span>'
+    const labelIcon = label.firstElementChild as SVGElement
+    const labelText = label.lastElementChild as HTMLElement
     // the label sits where the pointer is, in place of the cursor
     const placeLabel = (x: number, y: number) => {
         label.style.transform = `translate(calc(${x}px - 50%), calc(${y}px - 50%))`
@@ -968,10 +987,15 @@ const mount: Mount<Options> = (canvas, options) => {
             canvas.style.cursor = "none"
             document.body.style.cursor = "none"
         }
-        label.textContent = touch ? c.gateTouchText : c.gateText
+        labelText.textContent = touch ? c.gateTouchText : c.gateText
+        // no mouse on a touch screen
+        labelIcon.style.display = touch ? "none" : ""
         ;(canvas.parentElement ?? document.body).append(label)
         if (touch || still) {
             centreLabel()
+            label.style.opacity = "1"
+        } else if (c.gateAt) {
+            placeLabel(c.gateAt.x, c.gateAt.y)
             label.style.opacity = "1"
         } else label.style.opacity = "0"
     }

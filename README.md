@@ -24,6 +24,9 @@ The build fails if the frontmatter is wrong (unknown tag, summary over 140 chara
 
 ## The index grid
 
+A post opens as an overlay over the grid, not a page of its own (`src/lib/overlay.ts`): the URL changes to `/<slug>`, Back or Esc closes it, and opening `/<slug>` directly still gives the full page.
+
+
 A plain grid of square posters, five across on wide screens (4, 3 and 2 on smaller ones), each with the post's number above it, after the Figma frame 3180:17526. It is CSS only, so it looks the same with or without JS. The rules are in `CLAUDE.md` ("Index grid").
 
 ## The loading animation
