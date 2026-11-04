@@ -105,6 +105,11 @@ const external = d.kind === "external"
         text-transform: lowercase;
         white-space: nowrap;
         color: var(--gray-900);
+        /* The bulge under the pointer (src/lib/dock.ts sets --t and --w): the row is part of
+           the poster's tile, the same transform round the same point (the poster's centre:
+           8px under the row, then half the poster) */
+        transform: var(--t, none);
+        transform-origin: 50% calc(100% + 8px + var(--w, 0px) / 2);
     }
     .title {
         min-width: 0;
@@ -117,6 +122,16 @@ const external = d.kind === "external"
         display: block;
         background: var(--gray-200);
         overflow: hidden;
+        transform: var(--t, none);
+    }
+    /* Shade as the tile turns away on the bulge: black at --shade */
+    .card a::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: var(--black);
+        opacity: var(--shade, 0);
+        pointer-events: none;
     }
     .card :global(img) {
         display: block;

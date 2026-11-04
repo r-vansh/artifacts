@@ -1,9 +1,8 @@
 ---
 import { Picture, getImage } from "astro:assets"
-import { render } from "astro:content"
 import Base from "../layouts/Base.astro"
 import Stage from "../components/Stage.astro"
-import { getEntries, ratioOf } from "../lib/entries"
+import { getEntries } from "../lib/entries"
 
 export async function getStaticPaths() {
     const items = await getEntries()
@@ -14,93 +13,163 @@ export async function getStaticPaths() {
 
 const { entry } = Astro.props
 const d = entry.data
-const { Content } = await render(entry)
 const og = d.poster ? await getImage({ src: d.poster, width: 1200, format: "jpeg" }) : undefined
+// "open": the experiment on its own (the fullscreen stage), or where it lives on the portfolio
+const open = d.kind === "interactive" ? `/${entry.id}/play` : d.inPortfolio
 ---
 
 <Base title={d.title} description={d.summary} image={og?.src}>
     <main class="wrap" data-barba="container" data-barba-namespace="entry">
-        <section class="hero">
-            <div class="info">
-                <a class="back" href="/">
-                    <svg width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M5 1 2 4l3 3" fill="none" stroke="currentColor" /></svg>
-                    back
-                </a>
-                <div class="title">
-                    <h1>{d.title}</h1>
-                    <p class="summary">{d.summary}</p>
-                    <p class="tags">
-                        {d.tags.map((t) => <a href={`/tags/${t}`}>{t}</a>)}
-                        {d.sound && <span>sound on tap</span>}
-                    </p>
-                </div>
-                <div class="body">
-                    <Content />
-                </div>
-                <p class="links">
-                    {d.kind === "interactive" && <a href={`/${entry.id}/play`}>fullscreen</a>}
-                    {d.source && <a href={d.source}>source</a>}
-                    {d.inPortfolio && <a href={d.inPortfolio}>on vanshrastogi.me</a>}
-                </p>
-            </div>
-            <div class="media" style={`--ratio: ${ratioOf(entry)}`}>
-                {
-                    d.kind === "interactive" ? (
-                        <Stage entry={entry} />
-                    ) : d.poster ? (
-                        <Picture src={d.poster} alt={d.posterAlt} formats={["avif", "webp"]} widths={[720, 1080, 1600]} sizes="(min-width: 900px) 50vw, 100vw" loading="eager" fetchpriority="high" />
-                    ) : (
-                        <div class="fill" style={`background: ${d.fill}`} />
-                    )
-                }
-                {
-                    d.gallery.map((g) =>
-                        g.image ? (
-                            <Picture src={g.image} alt={g.alt} formats={["avif", "webp"]} widths={[720, 1080, 1600]} sizes="(min-width: 900px) 50vw, 100vw" loading="lazy" />
-                        ) : (
-                            <div class="fill" style={`aspect-ratio: 1 / ${g.ratio}; background: ${g.fill}`} />
+        <!-- The post card (Figma 3235:42578): a white card with dashed guides 40px in from each
+             edge, the text on the left and the media on the right, which scrolls on its own -->
+        <!-- data-ripple: a ripple runs across the card when it is expanded (overlay.ts); on
+             test-11 only for now, to try it -->
+        <article class="post" data-ripple={entry.id === "test-11" ? "" : undefined}>
+            <a class="corner expand" href={`/${entry.id}`} aria-label="Expand"><i class="icon" /></a>
+            <a class="corner back" href="/" aria-label="Close"><i class="icon" /></a>
+            <div class="inner">
+                <div class="info">
+                    <div class="title">
+                        <h1>{d.title}</h1>
+                        <p class="summary">{d.summary}</p>
+                        <p class="tags">{d.tags.map((t) => <span>{t}</span>)}</p>
+                    </div>
+                    {
+                        (open || d.source) && (
+                            <p class="links">
+                                {open && (
+                                    <a class="chip" href={open}>
+                                        open
+                                        <i class="icon redirect" />
+                                    </a>
+                                )}
+                                {d.source && (
+                                    <a class="chip" href={d.source}>
+                                        <i class="icon github"><b class="eye" /><b class="eye right" /></i>
+                                        github
+                                    </a>
+                                )}
+                            </p>
                         )
-                    )
-                }
+                    }
+                </div>
+                <div class="media">
+                    {
+                        d.kind === "interactive" ? (
+                            <Stage entry={entry} />
+                        ) : d.poster ? (
+                            <Picture src={d.poster} alt={d.posterAlt} formats={["avif", "webp"]} widths={[720, 1080, 1600]} sizes="880px" loading="eager" fetchpriority="high" />
+                        ) : (
+                            <div class="fill" style={`background: ${d.fill}`} />
+                        )
+                    }
+                    {
+                        d.gallery.map((g) =>
+                            g.image ? (
+                                <Picture src={g.image} alt={g.alt} formats={["avif", "webp"]} widths={[720, 1080, 1600]} sizes="880px" loading="lazy" />
+                            ) : (
+                                <div class="fill" style={`aspect-ratio: 1 / ${g.ratio}; background: ${g.fill}`} />
+                            )
+                        )
+                    }
+                </div>
             </div>
-        </section>
+            <i class="band top" aria-hidden="true"></i>
+            <i class="band bottom" aria-hidden="true"></i>
+        </article>
     </main>
 </Base>
 
 <style>
     main {
-        padding-top: clamp(32px, 5.556vw, 80px);
-    }
-    /* Two halves: the text on the left, the stage on the right (648 + 648 at 1440) */
-    .hero {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        column-gap: 16px;
-        align-items: start;
-    }
-    /* The text stays in view while the images on the right scroll past */
-    .info {
-        position: sticky;
-        top: 24px;
         display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 24px;
+        justify-content: center;
+        padding-top: clamp(32px, 5.556vw, 80px);
+        padding-bottom: clamp(32px, 5.556vw, 80px);
+    }
+    /* 1280 x 800 in the design (Figma 3236:43212): always 16:10, as large as that, never wider
+       than its container or taller than 90% of the window */
+    .post {
+        --frame: 40px;
+        --dash: repeating-linear-gradient(to right, var(--gray-200) 0 4px, transparent 4px 8px);
+        --dash-v: repeating-linear-gradient(to bottom, var(--gray-200) 0 4px, transparent 4px 8px);
+        position: relative;
+        box-sizing: border-box;
+        width: min(1280px, 100%, 90vh * 1.6);
+        aspect-ratio: 16 / 10;
+        border: 1px solid var(--gray-100);
+        box-shadow: 0 4px 72px color-mix(in srgb, var(--black) 6%, transparent);
+        /* Card <-> full window: the edge and its shadow fade with the morph (overlay.ts) */
+        transition:
+            border-color 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+            box-shadow 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+        /* The dashed guides, edge to edge, 40px in from each side (under the content) */
+        background:
+            var(--dash) 0 var(--frame) / 100% 1px no-repeat,
+            /* The bottom guide is the frame's last row, so the bottom band, which starts just
+               under the frame, never covers it; the right guide is just outside the frame's
+               last column, so the media column (which fills that column) never covers it */
+            var(--dash) 0 calc(100% - var(--frame)) / 100% 1px no-repeat,
+            var(--dash-v) var(--frame) 0 / 1px 100% no-repeat,
+            var(--dash-v) calc(100% - var(--frame) + 1px) 0 / 1px 100% no-repeat,
+            var(--white);
+    }
+    /* Expand (top left, overlay only) and close (top right), 16px, 12px from the corner */
+    .corner {
+        position: absolute;
+        z-index: 2;
+        top: 12px;
+        display: grid;
+        place-items: center;
+        width: 16px;
+        height: 16px;
+        color: var(--gray-500);
+    }
+    /* The icons (public/icons, from the portfolio's Icons folder): one-colour pixel art used
+       as masks, so they take the text colour (Gray/500, darker on hover) */
+    .icon {
+        display: block;
+        width: 16px;
+        height: 16px;
+        background: currentColor;
+        mask: var(--src) center / contain no-repeat;
+    }
+    .expand .icon {
+        --src: url("/icons/expand.svg");
+    }
+    .back .icon {
+        --src: url("/icons/close.svg");
+    }
+    .icon.redirect {
+        --src: url("/icons/redirect.svg");
+        width: 10px;
+        height: 10px;
+    }
+    .corner:hover {
+        color: var(--gray-main);
+    }
+    .expand {
+        left: 12px;
+        display: none;
+    }
+    :global(.overlay) .expand {
+        display: grid;
     }
     .back {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 4px;
-        background: var(--gray-100);
-        color: var(--gray-500);
-        font-family: var(--pixel);
-        font-size: 14px;
-        line-height: 1;
-        text-transform: lowercase;
+        right: 12px;
     }
-    .back:hover {
-        color: var(--primary);
+    .inner {
+        position: absolute;
+        inset: var(--frame);
+        display: grid;
+        /* The media column is 880 of the 1200 inside the frame, starting at 320 */
+        grid-template-columns: minmax(0, 1fr) 73.333%;
+        column-gap: var(--frame);
+    }
+    .info {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
     }
     .title {
         display: flex;
@@ -112,89 +181,177 @@ const og = d.poster ? await getImage({ src: d.poster, width: 1200, format: "jpeg
         font-size: 24px;
         font-weight: 400;
         line-height: 1;
+        letter-spacing: -0.03em;
+        color: var(--gray-main);
     }
     .summary {
         margin: 0;
+        font-size: 14px;
         font-weight: 300;
-        line-height: 1;
-        color: var(--gray-500);
+        line-height: 1.25;
+        letter-spacing: -0.03em;
+        color: var(--gray-900);
     }
     .tags {
         display: flex;
         flex-wrap: wrap;
-        gap: 16px;
+        gap: 4px 12px;
         margin: 0;
         padding-top: 16px;
-    }
-    .tags a,
-    .tags span {
-        padding: 4px;
-        border: 1px solid var(--gray-500);
-        color: var(--gray-500);
         font-family: var(--pixel);
         font-size: 14px;
         line-height: 1;
+        letter-spacing: -0.03em;
         text-transform: lowercase;
-    }
-    .tags a:hover {
-        color: var(--primary);
-        border-color: var(--primary);
-    }
-    .body {
-        max-width: 480px;
-        font-weight: 300;
-        line-height: 1.4;
         color: var(--gray-500);
     }
-    .body :global(strong) {
-        font-weight: 400;
-        color: var(--gray-main);
-    }
+    /* Only what the Figma card shows: title, summary, tags (plain text), then the links at
+       the bottom of the column */
     .links {
         display: flex;
         flex-wrap: wrap;
-        gap: 4px 16px;
-        margin: 0;
-        font-family: var(--pixel);
-        font-size: 14px;
-        text-transform: lowercase;
+        gap: 12px;
+        margin: auto 0 0;
+        padding-top: 16px;
     }
-    .links a {
+    .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 8px;
+        background: var(--gray-100);
+        font-size: 14px;
+        line-height: 1;
+        letter-spacing: -0.03em;
+        text-transform: lowercase;
         color: var(--gray-500);
     }
-    .links a:hover {
-        color: var(--primary);
+    .chip:hover {
+        color: var(--gray-main);
     }
-    /* The first block has the same proportions as the card on the main page; more media stacks under it */
+    /* Grey with two white eyes: the whole shape (eyes included) as a mask in the text colour,
+       so it darkens on hover like the others, and the eyes laid back over it in white, where
+       the file has them (x 2.167 and 7.792, y 2.14, 0.666 x 0.721 of 11 x 10) */
+    .icon.github {
+        --src: url("/icons/github.svg");
+        position: relative;
+        width: 11px;
+        height: 10px;
+    }
+    .eye {
+        position: absolute;
+        left: 19.7%;
+        top: 21.4%;
+        width: 6.05%;
+        height: 7.21%;
+        background: var(--white);
+    }
+    .eye.right {
+        left: 70.84%;
+    }
+    /* The media stack scrolls on its own. Its scroll area runs into the 40px margins above and
+       below the frame (padded by them, so at rest it starts and ends on the guides), so what
+       scrolls past slides under the frosted bands there (Figma 3243:43542) */
     .media {
         display: flex;
         flex-direction: column;
-        gap: var(--gap);
+        gap: 24px;
+        min-height: 0;
+        margin-block: calc(-1 * var(--frame));
+        padding-block: var(--frame);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: none;
+    }
+    /* The bands over the top and bottom margins, from the left guide to the card's edge:
+       white at 85% over a 20px blur. Over the media, under the corner icons */
+    .band {
+        position: absolute;
+        z-index: 1;
+        /* Between the left and right guides, which stay visible the card's full height
+           (nothing scrolls outside them) */
+        left: calc(var(--frame) + 1px);
+        right: var(--frame);
+        height: var(--frame);
+        background: color-mix(in srgb, var(--white) 85%, transparent);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        pointer-events: none;
+    }
+    .band.top {
+        top: 0;
+    }
+    .band.bottom {
+        bottom: 0;
+    }
+    .media::-webkit-scrollbar {
+        display: none;
     }
     .media :global(img),
     .media .fill {
         display: block;
+        flex: none;
         width: 100%;
         height: auto;
         background: var(--gray-100);
     }
+    /* The first block is 880 x 560 in the design (11:7), whatever the poster's own shape */
     .media :global(.stage) {
+        flex: none;
         height: auto;
         min-height: 0;
-        aspect-ratio: 1 / var(--ratio);
+        aspect-ratio: 880 / 560;
         border: 0;
     }
     .media > :global(img:first-child),
     .media > .fill:first-child {
-        aspect-ratio: 1 / var(--ratio);
+        aspect-ratio: 880 / 560;
         object-fit: cover;
     }
+    /* Expanded in the overlay (the expand corner, src/lib/overlay.ts): edge to edge, and only
+       the media grows. The text column keeps the width it had in the card (--info-w, set by
+       overlay.ts), the media column takes the rest. 100%, not 100vw: the overlay's width
+       leaves out the page's scrollbar */
+    :global(.overlay.full) .post {
+        width: 100%;
+        height: 100vh;
+        max-height: none;
+        aspect-ratio: auto;
+        border-color: transparent;
+        box-shadow: none;
+    }
+    :global(.overlay.full) .inner {
+        grid-template-columns: var(--info-w, 280px) minmax(0, 1fr);
+    }
+    /* Narrow: one column, the whole card scrolls (text, then media) */
     @media (max-width: 899px) {
-        .hero {
-            grid-template-columns: 1fr;
+        .post {
+            width: 100%;
+            aspect-ratio: auto;
+            height: auto;
+            max-height: 90vh;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            scrollbar-width: none;
         }
-        .info {
-            position: static;
+        .post::-webkit-scrollbar {
+            display: none;
+        }
+        .inner {
+            position: relative;
+            inset: auto;
+            margin: var(--frame);
+            grid-template-columns: 1fr;
+            row-gap: var(--frame);
+        }
+        .media {
+            overflow: visible;
+            margin-block: 0;
+            padding-block: 0;
+        }
+        /* The whole card scrolls here, so there is no margin for the media to pass under */
+        .band {
+            display: none;
         }
     }
 </style>

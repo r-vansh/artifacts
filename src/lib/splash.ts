@@ -56,7 +56,7 @@ else {
         // The paper is the page's own grey, so the reveal out opens onto the page without a
         // white cloud round the edge (the experiment's own page keeps its white)
         const background = getComputedStyle(canvas).getPropertyValue("--gray-50").trim() || undefined
-        exp = mount(canvas, { gui: false, background, gateText: "click anywhere", gateAt: window.splashPointer ?? null, revealTime: 3, exitTime: 2, gateDelay: 0.15 })
+        exp = mount(canvas, { gui: false, background, gateText: "click anywhere", gateAt: window.splashPointer ?? null, revealTime: 3, exitTime: 2, gateDelay: 0.15, clickReplay: false })
         // The failsafe is no use now that setup has worked. The veil's white stays under the
         // canvas while it fades in; it steps aside when the reveal out starts.
         veil.style.animation = "none"

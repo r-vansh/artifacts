@@ -50,6 +50,53 @@ html {
     -webkit-text-size-adjust: 100%;
 }
 
+/* The cursors (Figma nodes 1698:8367 "Cursor" and 1704:8769 "Cursor Clicked", file
+   RaHvRAMQFzGWaKucDP940O): a pixel arrow everywhere, the pixel hand on what can be clicked.
+   The numbers are the hotspots (the arrow's tip, the hand's fingertip) */
+:root {
+    --cursor: url("/cursor.svg") 1 1, auto;
+    --cursor-hand: url("/cursor-hand.svg") 7 0, pointer;
+}
+html {
+    cursor: var(--cursor);
+}
+a[href],
+button,
+summary,
+select,
+label:has(input),
+[role="button"],
+input[type="range"],
+input[type="checkbox"],
+input[type="radio"] {
+    cursor: var(--cursor-hand);
+}
+input:not([type]),
+input[type="text"],
+input[type="search"],
+input[type="email"],
+textarea {
+    cursor: text;
+}
+
+/* Smooth scrolling (src/lib/smooth.ts, Lenis): what its own stylesheet asks for */
+html.lenis,
+html.lenis body {
+    height: auto;
+}
+.lenis.lenis-smooth {
+    scroll-behavior: auto !important;
+}
+.lenis.lenis-smooth [data-lenis-prevent] {
+    overscroll-behavior: contain;
+}
+.lenis.lenis-stopped {
+    overflow: clip;
+}
+.lenis.lenis-scrolling iframe {
+    pointer-events: none;
+}
+
 body {
     margin: 0;
     min-height: 100vh;

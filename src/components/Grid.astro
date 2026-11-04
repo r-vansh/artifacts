@@ -26,15 +26,24 @@ const crosses = (i: number) => COLUMNS.filter((n) => i % n < n - 1 && i + n + 1 
 </div>
 
 <script>
-    import "../lib/overlay"
+    import "../lib/dock"
+    // Posts opening as an overlay (src/lib/overlay.ts) load lazily, like Barba: on idle or the
+    // first sign of interest. A click before it is ready opens the post as a page.
+    let overlay: Promise<unknown> | undefined
+    const load = () => (overlay ??= import("../lib/overlay").catch(() => (overlay = undefined)))
+    for (const ev of ["pointerover", "pointerdown", "touchstart", "focusin"]) addEventListener(ev, load, { once: true, passive: true })
+    if ("requestIdleCallback" in window) requestIdleCallback(load, { timeout: 3000 })
+    else setTimeout(load, 2000)
+    // The dock's tuning panel, only under `npm run dev`
+    if (import.meta.env.DEV) import("../lib/dock-tune")
+    // ...and the post opening's (the bulge, the handover, the particles)
+    if (import.meta.env.DEV) import("../lib/morph-tune")
 </script>
 
 <style>
-    /* A post opens in a panel over the grid (src/lib/overlay.ts): the layer is a dimmed
-       scrim, a click on it closes the post, and the post's <main> is the panel: 90vh tall, 16:9 where the window is wide enough, at most
-       90vh tall, centred, with its content scrolling inside it and no scrollbar showing. On
-       narrow screens it is not 16:9 (it would be a thin strip) but as tall as its content up
-       to 90vh */
+    /* A post opens over the grid (src/lib/overlay.ts): the layer is a frosted scrim (a click
+       on it closes the post) and the post's <main> holds its card (src/pages/[slug].astro,
+       Figma 3235:42578), centred; the card sizes itself (955 x 805, at most 90vh) */
     :global(.overlay) {
         position: fixed;
         inset: 0;
@@ -43,11 +52,22 @@ const crosses = (i: number) => COLUMNS.filter((n) => i % n < n - 1 && i + n + 1 
         align-items: center;
         justify-content: center;
         overflow: hidden;
-        background: color-mix(in srgb, var(--black) 28%, transparent);
-        backdrop-filter: blur(3px);
         opacity: 0;
-        transition: opacity 0.25s ease-out;
         outline: none;
+    }
+    /* The scrim (Figma frame 3235:40632, node 3235:40703): a light frosted glass, 16px blur
+       under rgb(232 232 232) at 60%. That grey is not a token; it is mixed from the two it sits
+       between, Gray/100 (237) and Gray/200 (221), 70/30. The crosshair marks over it are an
+       <svg> overlay.ts adds (.marks, below). On its own layer, so it can fade in and out
+       without fading the card with it (overlay.ts animates this, not the whole layer: the
+       card came in see-through while the scrim faded up, Vansh, 2026-11-05) */
+    :global(.overlay::before) {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: color-mix(in srgb, color-mix(in srgb, var(--gray-100) 70%, var(--gray-200)) 60%, transparent);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
     }
     :global(.overlay.on) {
         opacity: 1;
@@ -55,33 +75,25 @@ const crosses = (i: number) => COLUMNS.filter((n) => i % n < n - 1 && i + n + 1 
     :global(.overlay.out) {
         opacity: 0;
     }
+    /* The scrim's crosshair marks (Figma 3235:42694): public/overlay-mark.svg at 40px, 100px
+       apart (every 140px) from the window's top left corner; under the panel, not clickable */
+    :global(.overlay > .marks) {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+    }
     :global(.overlay > main.wrap) {
-        box-sizing: border-box;
+        position: relative;
+        z-index: 1;
         flex: none;
         width: calc(100% - 2 * var(--edge));
-        max-height: 90vh;
-        padding: clamp(24px, 3.333vw, 48px);
-        overflow-y: auto;
-        overscroll-behavior: contain;
-        scrollbar-width: none;
-        background: var(--gray-50);
-        border: 1px dashed var(--gray-200);
-        transform: translateY(8px);
-        transition: transform 0.25s ease-out;
+        padding: 0;
     }
-    :global(.overlay > main.wrap::-webkit-scrollbar) {
-        display: none;
-    }
-    @media (min-width: 900px) {
-        :global(.overlay > main.wrap) {
-            /* Always 90vh tall; as wide as 16:9 makes it (160vh) where the window is wide
-               enough, otherwise as wide as the guides allow, which breaks the ratio */
-            width: min(calc(100% - 2 * var(--edge)), 160vh);
-            height: 90vh;
-        }
-    }
-    :global(.overlay.on > main.wrap) {
-        transform: none;
+    /* The card expanded to the full window (src/lib/overlay.ts) */
+    :global(.overlay.full > main.wrap) {
+        width: 100%;
     }
     @media (prefers-reduced-motion: reduce) {
         :global(.overlay),
@@ -93,6 +105,8 @@ const crosses = (i: number) => COLUMNS.filter((n) => i % n < n - 1 && i + n + 1 
     .grid {
         /* Cards size the crosshairs' offsets from the row's width (cqw), and the row gap */
         container-type: inline-size;
+        /* The dock's z-indexes (src/lib/dock.ts) stay inside the grid, under the loader and the overlay */
+        isolation: isolate;
         --row-gap: clamp(48px, 16.667vw, 240px);
         display: grid;
         /* Posters stop growing at 160px (their size at 1440); on wider windows the row stays

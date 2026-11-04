@@ -24,18 +24,18 @@ The build fails if the frontmatter is wrong (unknown tag, summary over 140 chara
 
 ## The index grid
 
-A post opens as an overlay over the grid, not a page of its own (`src/lib/overlay.ts`): the URL changes to `/<slug>`, Back or Esc closes it, and opening `/<slug>` directly still gives the full page.
+A post opens as a panel over the dimmed grid, not a page of its own (`src/lib/overlay.ts`): 90vh tall and 16:9 where the window is wide enough (narrower than that where it is not), its content scrolling inside with no scrollbar. The URL changes to `/<slug>`; Back, Esc or a click outside the panel closes it, and opening `/<slug>` directly still gives the full page.
 
 
-A plain grid of square posters, five across on wide screens at most (4, 3 and 2 on smaller ones), each with the post's number and title above it, and a dashed crosshair where four posters meet, after the Figma frame 3180:17526. It is CSS only, so it looks the same with or without JS. The rules are in `CLAUDE.md` ("Index grid").
+A plain grid of square posters, five across on wide screens at most (4, 3 and 2 on smaller ones), each with the post's number and title above it, and a dashed crosshair where four posters meet, after the Figma frames 3203:17832 and 3208:17894. Above the grid the heading and its line sit in a hairline box; the logo is on the left guide line. It is CSS only, so it looks the same with or without JS. The rules are in `CLAUDE.md` ("Index grid").
 
 ## The loading animation
 
-On the first page of a visit, the Flow Field experiment covers the page full screen, faint, until a click (or Enter/Space). Then it draws itself in and opens through to the page, and the loader is gone about 5.7 s after that click (6 s at the latest). It plays once per tab session, on every load under `npm run dev`, and never under reduced motion or without JS. It is `src/lib/splash.ts`, a lazy chunk that `Base.astro` loads, mounting `src/experiments/flow-field` with no tuning panel. Details are in `CLAUDE.md` ("Loading animation").
+On the first page of a visit, the Flow Field experiment covers the page full screen, faint, until a click (or Enter/Space). The pointer is a small dark pill reading "click anywhere" (Figma node 3202:17823) while it waits. Then it draws itself in and opens through to the page, and the loader is gone about 5.7 s after that click (6 s at the latest). It plays once per tab session, on every load under `npm run dev`, and never under reduced motion or without JS. It is `src/lib/splash.ts`, a lazy chunk that `Base.astro` loads, mounting `src/experiments/flow-field` with no tuning panel. Details are in `CLAUDE.md` ("Loading animation").
 
 ## The intro effect
 
-On the home page, scrolling makes the "ART/facts" heading and the line under it slide together, crumble into orange particles from where they meet, and stream to the pointer, where they vanish. Scrolling back up brings them out of the pointer and rebuilds the text. It lives in `src/lib/intro.ts` and loads after the page is idle, so it stays out of the first load.
+On the home page, scrolling makes the "ART/FACTS" heading and the line under it (in their box) slide together, crumble into orange particles from where they meet, and stream to the pointer, where they vanish. Scrolling back up brings them out of the pointer and rebuilds the text. It lives in `src/lib/intro.ts` and loads after the page is idle, so it stays out of the first load.
 
 To tune it, run `npm run dev` and use the panel on the right of the home page: every setting has a slider and applies live. "Copy values" puts them on the clipboard; paste them over `params` near the top of `intro.ts` to make them the defaults. The panel only exists in dev and is not in the build. What each stage does, and what has been tried, is in `CLAUDE.md` ("Intro effect").
 

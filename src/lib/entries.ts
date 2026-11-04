@@ -2,15 +2,16 @@ import { getCollection, type CollectionEntry } from "astro:content"
 
 export type Entry = CollectionEntry<"experiments">
 
-/** All entries, newest first, featured pinned on top, each with its running number. */
+/** All entries, newest first, featured pinned on top, each with its number: its place in that
+ *  order, counting up from 1 (Vansh, 2026-11-05; it used to count by date, oldest first, so
+ *  the newest post had the highest number). A new post becomes 001 and the rest move down one.
+ *  Tag pages show a subset but keep these numbers. */
 export async function getEntries() {
     const all = await getCollection("experiments")
-    const oldestFirst = [...all].sort((a, b) => a.data.date.valueOf() - b.data.date.valueOf())
-    const number = new Map(oldestFirst.map((e, i) => [e.id, i + 1]))
     const sorted = [...all].sort(
         (a, b) => Number(b.data.featured) - Number(a.data.featured) || b.data.date.valueOf() - a.data.date.valueOf()
     )
-    return sorted.map((entry) => ({ entry, number: number.get(entry.id)! }))
+    return sorted.map((entry, i) => ({ entry, number: i + 1 }))
 }
 
 /** Height / width an entry's card (and the first block on its page) is shown at. Every card

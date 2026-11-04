@@ -274,6 +274,9 @@ export interface Options {
     /** A short buffer (s) between the click and the impact, so audio is ready to play it */
     gateDelay: number
     gateTransition: "dissolve" | "fade"
+    /** A click after the gate replays the reveal; the site's loader turns this off, so a
+        second click cannot start it again */
+    clickReplay: boolean
     /** Sound: on or off, master volume, and the levels of the impact recording, the
         ripple-drop recording and the waves (made in the browser), and how much the
         waves swell with each ring */
@@ -459,6 +462,7 @@ export const defaults: Options = {
     gateAt: null,
     gateDelay: 0.25,
     gateTransition: "dissolve",
+    clickReplay: true,
     soundOn: true,
     soundVolume: 0.5,
     soundImpact: 0.8,
@@ -916,7 +920,7 @@ const mount: Mount<Options> = (canvas, options) => {
     // set when the gate has already scheduled the impact's sound for the opening
     let impactScheduled = false
     const onClick = () => {
-        if (gated || entering) return
+        if (gated || entering || !c.clickReplay) return
         playIntro()
     }
 

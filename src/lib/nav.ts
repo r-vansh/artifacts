@@ -8,6 +8,16 @@ for (const ev of ["pointerover", "pointerdown", "touchstart", "focusin"]) addEve
 if ("requestIdleCallback" in window) requestIdleCallback(load, { timeout: 3000 })
 else setTimeout(load, 2000)
 
+// Smooth scrolling (src/lib/smooth.ts, Lenis), also lazy: on idle or the first wheel
+if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const smooth = () => import("./smooth").catch(() => {})
+    addEventListener("wheel", smooth, { once: true, passive: true })
+    if ("requestIdleCallback" in window) requestIdleCallback(smooth, { timeout: 3000 })
+    else setTimeout(smooth, 2000)
+    // Its tuning panel, only under `npm run dev` (the build strips this)
+    if (import.meta.env.DEV) import("./scroll-tune")
+}
+
 // Warm the browser cache for the page a link points at, so Barba's fetch is instant
 const warmed = new Set<string>()
 addEventListener(
