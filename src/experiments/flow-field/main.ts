@@ -975,7 +975,11 @@ const mount: Mount<Options> = (canvas, options) => {
     })()
     const nav = navigator as Navigator & { deviceMemory?: number }
     const hinted = WEAK_GPU.test(gpuName) || (touchScreen && ((nav.hardwareConcurrency || 8) <= 4 || (nav.deviceMemory || 8) <= 3))
-    let tier = forced >= 0 ? forced : hinted ? 1 : 0
+    // A GL drawn on the CPU (SwiftShader, llvmpipe) starts at the lowest tier outright, with no benchmark
+    // (each step of which makes every target again): nothing a CPU draws holds a better one, and the
+    // first frames of a higher one kept a test runner's page waiting for seconds (CI: an 8.7 s block)
+    const software = /SwiftShader|llvmpipe|Software/i.test(gpuName)
+    let tier = forced >= 0 ? forced : software ? TIERS.length - 1 : hinted ? 1 : 0
     const resize = () => {
         const { pass: smallPass, quality } = TIERS[tier]
         canvas.dataset.tier = String(tier)
@@ -1342,7 +1346,7 @@ const mount: Mount<Options> = (canvas, options) => {
             return null
         }
     })()
-    const bench = { on: forced < 0, frames: 0, probing: false, samples: [] as number[], lifted: false }
+    const bench = { on: forced < 0 && !software, frames: 0, probing: false, samples: [] as number[], lifted: false }
     // A verdict on the current tier: holds it, holds 30 a second, and whether tier 0 is worth a try
     const decide = (holds: boolean, holds30: boolean, tryFull: boolean) => {
         const done = () => (bench.on = false)
@@ -1585,7 +1589,7 @@ const mount: Mount<Options> = (canvas, options) => {
         // picture, until the click; the loader then plays as always. Nothing with a GPU gets near this
         if (gated && !entering && forced < 0 && last0) {
             lateFrames = gap > SLOW_GAP ? lateFrames + 1 : 0
-            if (lateFrames >= 2) {
+            if (lateFrames >= 2 || gap > 1500) {
                 frozen = true
                 canvas.dataset.still = ""
                 return
