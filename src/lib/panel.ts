@@ -329,6 +329,33 @@ html[data-splash] .tune-dock {
 }
 `
 
+// H hides every dev panel (and the scrub button and timeline) and shows them again, for a clean look
+// at the page. Kept for the tab's session, so a reload leaves them as they were. Typing in a field
+// is left alone.
+const HIDE_CSS = `
+html[data-tune-hidden] .tune-dock,
+html[data-tune-hidden] .tune,
+html[data-tune-hidden] .scrub,
+html[data-tune-hidden] .scrub-open {
+    display: none !important;
+}
+`
+const HIDE_KEY = "tune:hidden"
+if (!document.getElementById("tune-hide-css")) {
+    document.head.insertAdjacentHTML("beforeend", `<style id="tune-hide-css">${HIDE_CSS}</style>`)
+    try {
+        if (sessionStorage.getItem(HIDE_KEY) === "1") document.documentElement.setAttribute("data-tune-hidden", "")
+    } catch {}
+    addEventListener("keydown", (e) => {
+        if (e.key.toLowerCase() !== "h" || e.repeat || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
+        if ((e.target as Element | null)?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable=false])")) return
+        const hidden = document.documentElement.toggleAttribute("data-tune-hidden")
+        try {
+            sessionStorage.setItem(HIDE_KEY, hidden ? "1" : "0")
+        } catch {}
+    })
+}
+
 /** Put a panel in its side's column (made on first use) */
 export function dock(el: HTMLElement, side: "left" | "right" = "right") {
     let column = document.querySelector<HTMLElement>(`.tune-dock.${side}`)
@@ -434,9 +461,10 @@ export function panel<P extends Num>({ id, title, label, side = "right", groups,
         el.toggleAttribute("data-folded", folded)
         fold.setAttribute("aria-expanded", String(!folded))
         fold.setAttribute("aria-label", folded ? "Unfold the panel" : "Fold the panel")
-        remember.set(`tune:${id}:folded`, folded ? "1" : null)
+        remember.set(`tune:${id}:folded`, folded ? "1" : "0")
     }
-    setFolded(remember.get(`tune:${id}:folded`) === "1")
+    // Folded unless it was left open (Vansh, 2026-11-07: every panel starts collapsed)
+    setFolded(remember.get(`tune:${id}:folded`) !== "0")
 
     el.addEventListener("click", async (e) => {
         const button = (e.target as HTMLElement).closest("button")

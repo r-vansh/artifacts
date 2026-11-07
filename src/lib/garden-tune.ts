@@ -248,11 +248,21 @@ el.addEventListener("dblclick", (e) => {
 })
 
 const fold = el.querySelector<HTMLButtonElement>(".fold")!
-fold.addEventListener("click", () => {
-    const folded = !el.hasAttribute("data-folded")
+// Folded unless it was left open, like every panel (panel.ts)
+const setFolded = (folded: boolean) => {
     el.toggleAttribute("data-folded", folded)
     fold.setAttribute("aria-expanded", String(!folded))
-})
+    fold.setAttribute("aria-label", folded ? "Unfold the panel" : "Fold the panel")
+    try {
+        localStorage.setItem("tune:garden:folded", folded ? "1" : "0")
+    } catch {}
+}
+let stored: string | null = null
+try {
+    stored = localStorage.getItem("tune:garden:folded")
+} catch {}
+setFolded(stored !== "0")
+fold.addEventListener("click", () => setFolded(!el.hasAttribute("data-folded")))
 el.addEventListener("click", async (e) => {
     const button = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-act]")
     if (!button) return

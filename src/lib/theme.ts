@@ -19,11 +19,21 @@ let cloth: typeof import("./cloth") | undefined
 let chosen = root.dataset.theme === "dark"
 let cordWorks = false
 
+// The sky across the top of the page (sky.ts, lazy): stars and meteors on the dark page, clouds and
+// birds on the light one. Loaded once, then it follows `data-theme` by itself
+let skyLoaded = false
+const loadSky = () => {
+    if (skyLoaded) return
+    skyLoaded = true
+    import("./sky").catch(() => (skyLoaded = false))
+}
+
 const label = () => pull?.setAttribute("aria-label", chosen ? "Switch to light mode" : "Switch to dark mode")
 
 function apply(next: boolean, fade: boolean) {
     if (fade) root.classList.add("theme-fade")
     chosen = next
+    if (next) loadSky()
     if (next) root.dataset.theme = "dark"
     else delete root.dataset.theme
     delete root.dataset.peek
@@ -45,6 +55,7 @@ function apply(next: boolean, fade: boolean) {
 // The other page behind the cloth, as a look only: nothing is saved or announced
 const behind = (on: boolean) => {
     if (on) {
+        if (!chosen) loadSky()
         if (chosen) delete root.dataset.theme
         else root.dataset.theme = "dark"
         root.dataset.peek = chosen ? "light" : "dark"
@@ -137,6 +148,11 @@ export const dev = import.meta.env.DEV
     : undefined
 
 label()
+// (the light page has its sky too, clouds and birds: loaded when the page is idle; under `npm run dev`
+// at once, so its tuning panel is there)
+if (chosen || import.meta.env.DEV) loadSky()
+else if ("requestIdleCallback" in window) requestIdleCallback(loadSky, { timeout: 3000 })
+else setTimeout(loadSky, 1500)
 pull?.addEventListener("focus", prime)
 pull?.addEventListener("click", (e) => {
     if (!cordWorks || !e.detail) toggle()
