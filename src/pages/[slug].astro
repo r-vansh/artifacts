@@ -16,9 +16,21 @@ const d = entry.data
 const og = d.poster ? await getImage({ src: d.poster, width: 1200, format: "jpeg" }) : undefined
 // "open": the experiment on its own (the fullscreen stage), or where it lives on the portfolio
 const open = d.kind === "interactive" ? `/${entry.id}/play` : d.inPortfolio
+// Previous and next post in the grid's order, round the ends (the first one's previous is the
+// last, the last one's next is the first); only posts that have a page of their own
+const pages = (await getEntries()).filter(({ entry: e }) => e.data.kind !== "external").map(({ entry: e }) => e.id)
+const at = pages.indexOf(entry.id)
+const steps = pages.length > 1 ? { prev: pages[(at - 1 + pages.length) % pages.length], next: pages[(at + 1) % pages.length] } : undefined
 ---
 
 <Base title={d.title} description={d.summary} image={og?.src}>
+    <script is:inline slot="head">
+        // A reload of an open post goes back to the grid, closed (Vansh, 2026-11-07); a link or
+        // a typed address still opens the page
+        try {
+            if (performance.getEntriesByType("navigation")[0].type === "reload") location.replace("/")
+        } catch {}
+    </script>
     <main class="wrap" data-barba="container" data-barba-namespace="entry">
         <!-- The post card (Figma 3235:42578): a white card with dashed guides 40px in from each
              edge, the text on the left and the media on the right, which scrolls on its own -->
@@ -35,8 +47,18 @@ const open = d.kind === "interactive" ? `/${entry.id}/play` : d.inPortfolio
                         <p class="tags">{d.tags.map((t) => <span>{t}</span>)}</p>
                     </div>
                     {
-                        (open || d.source) && (
+                        (steps || open || d.source) && (
                             <p class="links">
+                                {steps && (
+                                    <>
+                                        <a class="chip step" href={`/${steps.prev}`} data-step="prev" aria-label="Previous post">
+                                            <i class="icon prev" />
+                                        </a>
+                                        <a class="chip step" href={`/${steps.next}`} data-step="next" aria-label="Next post">
+                                            <i class="icon next" />
+                                        </a>
+                                    </>
+                                )}
                                 {open && (
                                     <a class="chip" href={open}>
                                         open
@@ -91,8 +113,9 @@ const open = d.kind === "interactive" ? `/${entry.id}/play` : d.inPortfolio
        than its container or taller than 90% of the window */
     .post {
         --frame: 40px;
-        --dash: repeating-linear-gradient(to right, var(--gray-200) 0 4px, transparent 4px 8px);
-        --dash-v: repeating-linear-gradient(to bottom, var(--gray-200) 0 4px, transparent 4px 8px);
+        --paper: var(--white);
+        --dash: repeating-linear-gradient(to right, var(--line) 0 4px, transparent 4px 8px);
+        --dash-v: repeating-linear-gradient(to bottom, var(--line) 0 4px, transparent 4px 8px);
         position: relative;
         box-sizing: border-box;
         width: min(1280px, 100%, 90vh * 1.6);
@@ -112,7 +135,30 @@ const open = d.kind === "interactive" ? `/${entry.id}/play` : d.inPortfolio
             var(--dash) 0 calc(100% - var(--frame)) / 100% 1px no-repeat,
             var(--dash-v) var(--frame) 0 / 1px 100% no-repeat,
             var(--dash-v) calc(100% - var(--frame) + 1px) 0 / 1px 100% no-repeat,
-            var(--white);
+            var(--paper);
+    }
+    /* Dark (Figma 3274:18283): the card is Gray/Main of the light page (Gray/50 here, not the
+       turned-over white, which is black), with a deeper shadow, the title Gray/900, the summary
+       Gray/500, the tags Gray/800 of the Figma file (Gray/200 here) and the chips' text Gray/800: not what turning the ramp over
+       gives for each */
+    :global(html[data-theme="dark"]) .post {
+        --paper: var(--gray-50);
+        box-shadow: 0 4px 72px color-mix(in srgb, var(--white) 25%, transparent);
+    }
+    :global(html[data-theme="dark"]) h1 {
+        color: var(--gray-900);
+    }
+    :global(html[data-theme="dark"]) .summary {
+        color: var(--gray-500);
+    }
+    :global(html[data-theme="dark"]) .tags {
+        color: var(--gray-200);
+    }
+    :global(html[data-theme="dark"]) .chip {
+        color: var(--gray-800);
+    }
+    :global(html[data-theme="dark"]) .chip:hover {
+        color: var(--gray-main);
     }
     /* Expand (top left, overlay only) and close (top right), 16px, 12px from the corner */
     .corner {
@@ -139,6 +185,21 @@ const open = d.kind === "interactive" ? `/${entry.id}/play` : d.inPortfolio
     }
     .back .icon {
         --src: url("/icons/close.svg");
+    }
+    /* Previous / next (Figma 3236:43212): 14px chevrons in a chip with 4px round it */
+    .icon.prev,
+    .icon.next {
+        width: 14px;
+        height: 14px;
+    }
+    .icon.prev {
+        --src: url("/icons/prev.svg");
+    }
+    .icon.next {
+        --src: url("/icons/next.svg");
+    }
+    .chip.step {
+        padding: 4px;
     }
     .icon.redirect {
         --src: url("/icons/redirect.svg");
@@ -273,7 +334,7 @@ const open = d.kind === "interactive" ? `/${entry.id}/play` : d.inPortfolio
         left: calc(var(--frame) + 1px);
         right: var(--frame);
         height: var(--frame);
-        background: color-mix(in srgb, var(--white) 85%, transparent);
+        background: color-mix(in srgb, var(--paper) 85%, transparent);
         backdrop-filter: blur(20px);
         -webkit-backdrop-filter: blur(20px);
         pointer-events: none;

@@ -2,18 +2,17 @@
 import { Image } from "astro:assets"
 import linkedin from "../assets/social/linkedin.png"
 import instagram from "../assets/social/instagram.png"
-import arena from "../assets/social/arena.png"
-import x from "../assets/social/x.png"
 import github from "../assets/social/github.png"
-import behance from "../assets/social/behance.png"
+import x from "../assets/social/x.png"
+import arena from "../assets/social/arena.png"
 
+// In the order of vanshrastogi.me
 const socials = [
-    { name: "LinkedIn", href: "https://www.linkedin.com/in/vansh-rastogi1/", src: linkedin },
-    { name: "Instagram", href: "https://www.instagram.com/vansh.rastogi_/", src: instagram },
-    { name: "Are.na", href: "https://www.are.na/vansh-rastogi/channels", src: arena },
-    { name: "X", href: "https://x.com/vansh_designs", src: x },
-    { name: "GitHub", href: "https://github.com/r-vansh/", src: github },
-    { name: "Behance", href: "https://www.behance.net/vanshrastogi", src: behance },
+    { name: "LinkedIn", handle: "vansh-rastogi1", href: "https://www.linkedin.com/in/vansh-rastogi1/", src: linkedin },
+    { name: "Instagram", handle: "vansh.rastogi_", href: "https://www.instagram.com/vansh.rastogi_/", src: instagram },
+    { name: "GitHub", handle: "r-vansh", href: "https://github.com/r-vansh/", src: github, dark: "/social/github-dark.svg" },
+    { name: "X", handle: "vansh_designs", href: "https://x.com/vansh_designs", src: x, dark: "/social/x-dark.svg" },
+    { name: "Are.na", handle: "vansh-rastogi", href: "https://www.are.na/vansh-rastogi/channels", src: arena },
 ]
 const RESUME = "https://drive.google.com/file/d/1ToBkoytEI-dncMYj2WT-1YDqcAKHq-IR/view?usp=sharing"
 ---
@@ -21,30 +20,68 @@ const RESUME = "https://drive.google.com/file/d/1ToBkoytEI-dncMYj2WT-1YDqcAKHq-I
 <section class="contact" aria-label="Contact">
     <hr class="rule" />
     <div class="wrap body">
-        <h2>Available for full-time roles.</h2>
+        <h2>Let’s nerd out about design</h2>
         <a class="resume caps" href={RESUME}>View Resume</a>
         <div class="row">
-            <a class="email" href="mailto:rastogi.vansh@outlook.com">
-                <svg width="32" height="32" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">
-                    <path d="M30.6 1.4 1.9 12.9c-1 .4-.9 1.8.1 2.1l11.3 3.6 3.6 11.3c.3 1 1.7 1.1 2.1.1L30.6 1.4Zm-16 15.8-8.5-2.7L25.4 6.8 14.6 17.2Zm2.2 8.7-2.7-8.5L24.6 6.6l-7.8 19.3Z"></path>
-                </svg>
+            <!-- A click copies the address (as on vanshrastogi.me); without script it is a mailto link -->
+            <a class="email" href="mailto:rastogi.vansh@outlook.com" data-copy="rastogi.vansh@outlook.com">
                 <span>rastogi.vansh@outlook.com</span>
+                <i class="copy" aria-hidden="true"></i>
+                <b class="done" aria-live="polite"><i class="check" aria-hidden="true"></i><em>copied</em></b>
             </a>
             <ul class="socials">
                 {
                     socials.map((s) => (
                         <li>
                             <a href={s.href} aria-label={s.name} rel="me noopener">
-                                <Image src={s.src} alt="" width={62} height={62} densities={[1, 2]} loading="lazy" />
+                                <Image class={s.dark ? "by-light" : undefined} src={s.src} alt="" width={62} height={62} densities={[1, 2]} loading="lazy" />
+                                {s.dark && <img class="by-dark" src={s.dark} alt="" width="62" height="62" loading="lazy" />}
                             </a>
+                            <span class="tip" aria-hidden="true">
+                                <b>{s.name}</b>
+                                <i>{s.handle}</i>
+                            </span>
                         </li>
                     ))
                 }
             </ul>
         </div>
     </div>
-    <hr class="rule" />
 </section>
+
+<script>
+    // Click the address and it is copied; "copied" shows for a couple of seconds
+    const link = document.querySelector<HTMLAnchorElement>("[data-copy]")
+    let timer = 0
+    const copy = async (text: string) => {
+        try {
+            await navigator.clipboard.writeText(text)
+            return true
+        } catch {
+            // No clipboard permission (or an old browser): the selection route
+            const area = document.createElement("textarea")
+            area.value = text
+            area.setAttribute("readonly", "")
+            area.style.cssText = "position:fixed;top:0;left:0;opacity:0"
+            document.body.append(area)
+            area.select()
+            let ok = false
+            try {
+                ok = document.execCommand("copy")
+            } catch {}
+            area.remove()
+            return ok
+        }
+    }
+    link?.addEventListener("click", async (e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
+        e.preventDefault()
+        if (!(await copy(link.dataset.copy!))) return void (location.href = link.href)
+        link.dataset.copied = ""
+        clearTimeout(timer)
+        timer = window.setTimeout(() => delete link.dataset.copied, 2100)
+    })
+</script>
 
 <style>
     .contact {
@@ -55,7 +92,7 @@ const RESUME = "https://drive.google.com/file/d/1ToBkoytEI-dncMYj2WT-1YDqcAKHq-I
     }
     h2 {
         margin: 0;
-        font-size: clamp(32px, 4.444vw, 64px);
+        font-size: 40px;
         font-weight: 300;
         line-height: 1;
         letter-spacing: -0.03em;
@@ -63,22 +100,60 @@ const RESUME = "https://drive.google.com/file/d/1ToBkoytEI-dncMYj2WT-1YDqcAKHq-I
     }
     .resume {
         display: inline-flex;
-        margin-top: 32px;
-        padding: 16px 24px;
+        margin-top: 40px;
+        align-items: center;
+        /* 43px, as in the Figma button (its text is trimmed to the capitals) */
+        height: 43px;
+        padding: 0 24px;
         background: var(--primary);
         color: var(--white);
         font-weight: 500;
     }
-    .resume:hover {
-        background: var(--black);
+    /* On hover (and focus, and while pressed), as on vanshrastogi.me: the button darkens a
+       step and four corner brackets, 20px and 1px thick, slide in to sit 4px outside it */
+    .resume {
+        position: relative;
+        transition: background-color 0.2s ease;
+    }
+    .resume::before {
+        --bracket: linear-gradient(var(--primary), var(--primary));
+        content: "";
+        position: absolute;
+        inset: -8px;
+        background:
+            var(--bracket) 0 0 / 20px 1px,
+            var(--bracket) 0 0 / 1px 20px,
+            var(--bracket) 100% 0 / 20px 1px,
+            var(--bracket) 100% 0 / 1px 20px,
+            var(--bracket) 0 100% / 20px 1px,
+            var(--bracket) 0 100% / 1px 20px,
+            var(--bracket) 100% 100% / 20px 1px,
+            var(--bracket) 100% 100% / 1px 20px;
+        background-repeat: no-repeat;
+        opacity: 0;
+        pointer-events: none;
+        transition:
+            inset 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+            opacity 0.2s ease-out;
+    }
+    .resume:hover,
+    .resume:focus-visible,
+    .resume:active {
+        background: color-mix(in srgb, var(--primary), black 8.5%);
+    }
+    .resume:hover::before,
+    .resume:focus-visible::before,
+    .resume:active::before {
+        inset: -4px;
+        opacity: 1;
     }
     .row {
         display: flex;
         flex-wrap: wrap;
-        align-items: flex-end;
+        align-items: center;
         justify-content: space-between;
         gap: 24px;
-        margin-top: 45px;
+        margin-top: 66px;
     }
     .email {
         display: flex;
@@ -94,13 +169,46 @@ const RESUME = "https://drive.google.com/file/d/1ToBkoytEI-dncMYj2WT-1YDqcAKHq-I
     .email span {
         overflow-wrap: anywhere;
     }
-    .email svg {
-        flex: none;
-        width: 1em;
-        height: 1em;
-    }
+    /* Gray/900 on hover (the copy icon follows: it is drawn in the text colour) */
     .email:hover {
+        color: var(--gray-900);
+    }
+    /* The pixel copy icon after the address (vanshrastogi.me), which a click swaps for a check and
+       "copied" in the accent for a couple of seconds */
+    .copy,
+    .check {
+        flex: none;
+        background: currentColor;
+    }
+    .copy {
+        width: 19px;
+        height: 19px;
+        mask: url("/icons/copy.svg") center / contain no-repeat;
+    }
+    .done {
+        display: none;
+        align-items: center;
+        gap: 4px;
         color: var(--primary);
+        font-family: var(--pixel);
+        font-size: 14px;
+        font-style: normal;
+        font-weight: 400;
+        letter-spacing: -0.03em;
+    }
+    .done em {
+        font-style: normal;
+    }
+    .check {
+        width: 16px;
+        height: 16px;
+        mask: url("/icons/check.svg") center / contain no-repeat;
+    }
+    [data-copied] .copy {
+        display: none;
+    }
+    [data-copied] .done {
+        display: inline-flex;
     }
     .socials {
         display: flex;
@@ -114,12 +222,67 @@ const RESUME = "https://drive.google.com/file/d/1ToBkoytEI-dncMYj2WT-1YDqcAKHq-I
         width: clamp(44px, 4.306vw, 62px);
         height: auto;
         border-radius: 29%;
-        transition: transform 0.15s ease;
     }
-    .socials a:hover img {
-        transform: translateY(-2px);
+    /* GitHub and X are drawn again for the dark page (Figma 3273:17727) */
+    .by-dark {
+        display: none;
     }
-    .contact > .rule:last-child {
-        margin-top: 0;
+    :global(html[data-theme="dark"]) .by-light {
+        display: none;
+    }
+    :global(html[data-theme="dark"]) .by-dark {
+        display: block;
+    }
+    /* On hover (or keyboard focus) a tag over the icon, as on vanshrastogi.me: the name in
+       capitals and the handle in pixel type, Gray/100, 4px above. The icon itself stays put */
+    .socials li {
+        position: relative;
+    }
+    .tip {
+        position: absolute;
+        bottom: calc(100% + 4px);
+        left: 50%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        padding: 4px;
+        background: var(--gray-100);
+        color: var(--gray-500);
+        font-size: 14px;
+        line-height: 1;
+        letter-spacing: -0.03em;
+        white-space: nowrap;
+        pointer-events: none;
+        opacity: 0;
+        transform: translate(-50%, 3px);
+        transition:
+            opacity 0.15s ease,
+            transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .tip b {
+        font-weight: 400;
+        text-transform: uppercase;
+    }
+    .tip i {
+        font-family: var(--pixel);
+        font-style: normal;
+    }
+    .socials li:hover .tip,
+    .socials a:focus-visible + .tip {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+    /* On a phone the last tag would hang off the window: it sits flush right instead */
+    @media (max-width: 600px) {
+        .socials li:last-child .tip {
+            left: auto;
+            right: 0;
+            transform: translate(0, 3px);
+        }
+        .socials li:last-child:hover .tip,
+        .socials li:last-child a:focus-visible + .tip {
+            transform: none;
+        }
     }
 </style>

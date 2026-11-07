@@ -84,4 +84,8 @@ const items = await getEntries()
         text-align: justify;
         color: var(--gray-700);
     }
+    /* Dark (Figma 3273:17727): Gray/500, not the turned-over Gray/700 */
+    :global(html[data-theme="dark"]) p {
+        color: var(--gray-500);
+    }
 </style>

@@ -16,7 +16,7 @@ Node 22.22 or newer.
 
 1. Copy `src/experiments/_template` to `src/experiments/<slug>` (no leading underscore).
 2. Write `main.ts`: a `mount(canvas, options)` function that returns `pause`, `resume` and `stop`. No framework needed. `src/experiments/game-of-life/main.ts` is a full example ported from a Framer component.
-3. Fill in the frontmatter in `index.md` and write a short note.
+3. Fill in the frontmatter in `index.md`. Only the title, summary and tags show on the post; `source` adds a "github" link and an interactive post gets an "open" link to its fullscreen stage. Extra images go in `gallery`.
 4. `npm run build && npm run poster -- <slug>` grabs `poster.png` from the running canvas. Rebuild. Every card shows its poster as a square (cropped to fill), so keep the important part in the middle.
 5. Push to `main`, then publish by hand: Actions → Deploy → Run workflow (see Deploy below).
 
@@ -24,20 +24,41 @@ The build fails if the frontmatter is wrong (unknown tag, summary over 140 chara
 
 ## The index grid
 
-A post opens as a panel over the dimmed grid, not a page of its own (`src/lib/overlay.ts`): 90vh tall and 16:9 where the window is wide enough (narrower than that where it is not), its content scrolling inside with no scrollbar. The URL changes to `/<slug>`; Back, Esc or a click outside the panel closes it, and opening `/<slug>` directly still gives the full page.
+A grid of square posters, five across on wide screens at most (4, 3 and 2 on smaller ones), each with the post's number and title above it, and a dashed crosshair where four posters meet, after the Figma frames 3203:17832 and 3208:17894. Posts run newest first and are numbered in that order, so the newest is .001. Above the grid the heading and its line sit in a hairline box; the logo is on the left guide line, and shows a selection frame when hovered.
 
+With a mouse, the grid bulges under the pointer like a dome: the posters near it lift, turn and spread a little, and the bulge sinks when the pointer leaves (`src/lib/dock.ts`). It only adds transforms, so without JS the grid is the same, flat.
 
-A plain grid of square posters, five across on wide screens at most (4, 3 and 2 on smaller ones), each with the post's number and title above it, and a dashed crosshair where four posters meet, after the Figma frames 3203:17832 and 3208:17894. Above the grid the heading and its line sit in a hairline box; the logo is on the left guide line. It is CSS only, so it looks the same with or without JS. The rules are in `CLAUDE.md` ("Index grid").
+## Opening a post
+
+A post opens over the grid, not as a page of its own (`src/lib/overlay.ts`). The clicked poster comes apart into particles in its own colours, which fly onto the post's card as it grows out of the poster, bulging like a lens, and settles (`src/lib/converge.ts`; the bulge is a WebGL shader over a picture of the card, which then hands over to the real card). Closing plays it back into the poster. The URL changes to `/<slug>`; Back, Esc, the close corner or a click outside closes it, and opening `/<slug>` directly still gives the full page. With reduced motion it opens without the effects; without WebGL2, without the bulge.
+
+The card follows the Figma frames 3236:43212 and 3243:43542: 16:10, dashed guides 40px in, the title, summary and tags on the left, the "open" and "github" links at the bottom, and the media on the right, scrolling on its own under frosted bands at the top and bottom. The expand corner fills the window with it; only the media grows. Its icons are in `public/icons`.
+
+## Dark mode: the cord
+
+A dashed cord with a sun on the end hangs from the top of every page (Figma node 3252:17850; `src/components/Cord.astro`, physics in `src/lib/cord.ts`). It sways on its own, and a pointer passing by swings and stretches it, but only holding the click and pulling reaches the page; a plain click just tugs at the cord.
+
+The page itself is a cloth (`src/lib/cloth.ts`). A slight pull peels it off the wall around the cord, with the dark page showing behind; let go and it heals flat, with nothing changed. A proper pull, about 105 px, tears it away: it falls, folds and piles up on the bottom edge, then drops out of the window with the cord, and a new cord lowers from the top. Pulling in dark mode fades back to light (there is no cloth that way). The choice is kept in localStorage; light is the default, and the system setting is not read.
+
+Dark mode is the same colour tokens turned over (`src/styles/global.css`), so keep using tokens and it follows. WebGL can't draw a web page, so `cloth.ts` paints what is on screen onto a canvas from its measurements: **a new kind of CSS on a page has to be taught to the painter**, or the fabric won't quite match the page. Under reduced motion, without WebGL2, or before the cloth has loaded it is a plain colour fade. Enter on the focused sun switches straight away.
 
 ## The loading animation
 
-On the first page of a visit, the Flow Field experiment covers the page full screen, faint, until a click (or Enter/Space). The pointer is a small dark pill reading "click anywhere" (Figma node 3202:17823) while it waits. Then it draws itself in and opens through to the page, and the loader is gone about 5.7 s after that click (6 s at the latest). It plays once per tab session, on every load under `npm run dev`, and never under reduced motion or without JS. It is `src/lib/splash.ts`, a lazy chunk that `Base.astro` loads, mounting `src/experiments/flow-field` with no tuning panel. Details are in `CLAUDE.md` ("Loading animation").
+On the first page of a visit, the Flow Field experiment covers the page full screen, faint, with ripples crossing it in silence, until a click (or Enter/Space). The pointer is a small dark pill reading "click anywhere" (Figma node 3202:17823) while it waits. Then it draws itself in and opens through to the page, and the loader is gone about 5.7 s after that click (6 s at the latest). It plays once per tab session, on every load under `npm run dev`, and never under reduced motion or without JS. It is `src/lib/splash.ts`, a lazy chunk that `Base.astro` loads, mounting `src/experiments/flow-field` with no tuning panel.
 
 ## The intro effect
 
 On the home page, scrolling makes the "ART/FACTS" heading and the line under it (in their box) slide together, crumble into orange particles from where they meet, and stream to the pointer, where they vanish. Scrolling back up brings them out of the pointer and rebuilds the text. It lives in `src/lib/intro.ts` and loads after the page is idle, so it stays out of the first load.
 
-To tune it, run `npm run dev` and use the panel on the right of the home page: every setting has a slider and applies live. "Copy values" puts them on the clipboard; paste them over `params` near the top of `intro.ts` to make them the defaults. The panel only exists in dev and is not in the build. What each stage does, and what has been tried, is in `CLAUDE.md` ("Intro effect").
+## Scrolling and cursors
+
+Scrolling is smoothed with Lenis (`src/lib/smooth.ts`), on the page and inside an open post; it loads after the page is idle and is off under reduced motion. The cursors are pixel-art SVGs from Figma (`public/cursor.svg`, and `public/cursor-hand.svg` on anything clickable), with `-dark` copies for dark mode; the sun on the cord uses the browser's grab cursor.
+
+## Tuning panels
+
+Under `npm run dev`, panels on the sides of the page tune the effects live: Scroll (every page), Bulge (the grid's dome), Morph (opening a post), Particles (the intro effect, home page), Cord and Cloth. Every setting has a slider; double-click one to reset it. "Copy values" puts them on the clipboard; paste them over `params` near the top of the matching file (`smooth.ts`, `dock.ts`, `converge.ts`, `intro.ts`, `cord.ts`, `cloth.ts`) to make them the defaults. The panels exist only in dev and are not in the build.
+
+The orange **Scrub the cloth** button at the top of the window (also dev only, `src/lib/scrub.ts`) records a scripted pull and gives you a timeline: drag it both ways, play it slowly, step with the arrow keys. Moving a Cord or Cloth slider simulates it again with the same folds; the light and shadow sliders apply at once. Close or Esc puts everything back. The loader's waiting screen has no panel of its own: tune it on `/flow-field` with "Show gate again" and the "Waiting drift" sliders.
 
 ## Rules every experiment follows
 
@@ -62,17 +83,23 @@ Checked by `scripts/budget.mjs` on every build (gzipped sizes) and by Lighthouse
 | The font file | 30 KB |
 | Lighthouse performance, mobile | 95 or higher |
 
+Anything heavy loads lazily: the post overlay and its particles, Barba and GSAP, Lenis, the intro effect, the cord's physics and the cloth. The home page's first-load JS is about 4.3 KB.
+
 ## Layout
 
 ```
 src/
   experiments/<slug>/   index.md, main.ts, poster.png
-  components/           Card, Contact, Grid, Stage
+  components/           Card, Contact, Cord, Grid, Stage
   layouts/Base.astro
   lib/                  stage.ts (loader), types.ts (the mount contract), entries.ts,
-                        intro.ts (the heading's scroll burst), tune.ts (its dev-only panel),
-                        splash.ts (the loading animation), nav.ts + barba.ts (page swaps)
-  pages/                index, [slug], [slug]/play, tags/[tag], rss.xml, llms.txt
+                        overlay.ts + converge.ts (opening a post), dock.ts (the grid's bulge),
+                        smooth.ts (Lenis), intro.ts (the heading's scroll burst),
+                        splash.ts (the loading animation), nav.ts + barba.ts (page swaps),
+                        theme.ts + cord.ts + cloth.ts (dark mode, the cord, the page as a cloth),
+                        panel.ts + *-tune.ts, tune.ts and scrub.ts (dev only: panels, timeline)
+  pages/                index, [slug] (the post card), [slug]/play, tags/[tag], rss.xml, llms.txt
+public/                 icons/, cursors, fonts, crosshair and overlay marks
 scripts/                budget.mjs, poster.mjs
 ```
 

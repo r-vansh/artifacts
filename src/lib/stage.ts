@@ -29,6 +29,8 @@ async function boot(stage: HTMLElement, canvas: HTMLCanvasElement) {
     let onScreen = true
     const sync = () => (onScreen && !document.hidden ? exp?.resume() : exp?.pause())
     const dispose = () => {
+        // Once (a post switching stops its old card early, and closing may stop it again)
+        if (dead) return
         dead = true
         io?.disconnect()
         document.removeEventListener("visibilitychange", sync)

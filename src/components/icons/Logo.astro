@@ -1,5 +1,7 @@
 ---
-// The R mark from Logo.svg, without its frame. Inherits the text colour.
+// The R mark, as in "logo hover.svg": inherits the text colour. Hovered, a selection frame shows round
+// it, outside its box, so nothing moves. The viewBox is the R alone; the frame stays hidden with
+// `visibility`, which the cloth's painter (cloth.ts) also goes by.
 interface Props {
     height: number
     class?: string
@@ -7,6 +9,28 @@ interface Props {
 const { height, class: className } = Astro.props
 ---
 
-<svg class={className} height={height} width={Math.round(height * 0.797 * 100) / 100} viewBox="9.33 9 64.96 81.48" fill="currentColor" aria-hidden="true">
-    <path d="M39.2266 9C49.4468 9.00017 57.7314 17.2856 57.7314 27.5059C57.7314 36.9435 50.6682 44.7265 41.5459 45.8672C43.4208 56.019 45.663 64.44 48.4922 70.6377C51.278 76.7401 54.2325 79.7813 57.0986 80.8145C59.7691 81.777 63.6708 81.4371 69.5938 77.4316L74.2861 84.3711C67.2959 89.0982 60.5148 90.9507 54.2578 88.6953C48.1964 86.5104 43.9789 80.9226 40.8721 74.1172C35.1464 61.5746 31.8357 41.8122 29.2695 18.9648L17.8506 89.6475H9.3291L22.3594 9.00098L39.2266 9Z"></path>
+<svg class:list={["logo", className]} height={height} width={Math.round(height * 0.8054 * 100) / 100} viewBox="4.56 4.186 38.66 48" fill="currentColor" aria-hidden="true">
+    <path d="M22.354 4.18607C28.4366 4.18617 33.3672 9.11725 33.3672 15.1999C33.3672 20.8168 29.1635 25.4489 23.7343 26.1278C24.8502 32.1696 26.1846 37.1814 27.8684 40.87C29.5264 44.5019 31.2848 46.3119 32.9906 46.9268C34.58 47.4997 36.902 47.2974 40.4271 44.9135L43.2198 49.0435C39.0596 51.8569 35.0238 52.9594 31.2999 51.6171C27.6924 50.3167 25.1823 46.9912 23.3333 42.9409C19.9256 35.4761 17.9552 23.7144 16.428 10.1167L9.63194 52.1838H4.56033L12.3154 4.18665L22.354 4.18607Z"></path>
+    <g class="frame">
+        <path fill-rule="evenodd" clip-rule="evenodd" d="M4.00001 2.28571H42.8572V1.71428H4.00001V2.28571ZM2.28572 3.99999H1.71429L1.71429 52H2.28572V3.99999ZM44.5714 52L44.5714 3.99999H45.1429L45.1429 52H44.5714ZM42.8571 53.7143V54.2857H4.00001V53.7143H42.8571Z"></path>
+        <path d="M4 0V4H0V0H4ZM0.571429 3.42857H1.71429H2.28572H3.42857V2.28571V1.71429V0.571429H0.571429V3.42857Z"></path>
+        <path d="M4 52V56H0V52H4ZM0.571429 55.4286H3.42857V54.2857V53.7143V52.5714H2.28572H1.71429H0.571429V55.4286Z"></path>
+        <path d="M46.8571 0V4H42.8571V0H46.8571ZM43.4286 3.42857H44.5714H45.1429H46.2857V0.571429H43.4286V1.71429V2.28571V3.42857Z"></path>
+        <path d="M46.8571 52V56H42.8571V52H46.8571ZM43.4286 55.4286H46.2857V52.5714H45.1429H44.5714H43.4286V53.7143V54.2857V55.4286Z"></path>
+    </g>
 </svg>
+
+<style>
+    .logo {
+        overflow: visible;
+    }
+    .frame {
+        opacity: 0.3;
+        visibility: hidden;
+        pointer-events: none;
+    }
+    :global(a:hover) > .logo .frame,
+    :global(a:focus-visible) > .logo .frame {
+        visibility: visible;
+    }
+</style>

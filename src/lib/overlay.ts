@@ -74,7 +74,7 @@ async function open(url: URL, from: HTMLElement) {
         // which stays the layer's first child: the panel)
         layer.insertAdjacentHTML(
             "beforeend",
-            `<svg class="marks" aria-hidden="true"><defs><pattern id="overlay-marks" width="140" height="140" patternUnits="userSpaceOnUse"><image href="/overlay-mark.svg" width="40" height="40"/></pattern></defs><rect width="100%" height="100%" fill="url(#overlay-marks)"/></svg>`,
+            `<svg class="marks" aria-hidden="true"><defs><pattern id="overlay-marks" width="140" height="140" patternUnits="userSpaceOnUse"><image href="/overlay-mark${document.documentElement.dataset.theme === "dark" ? "-dark" : ""}.svg" width="40" height="40"/></pattern></defs><rect width="100%" height="100%" fill="url(#overlay-marks)"/></svg>`,
         )
         // Only the card's own scrolling parts (the media column, the write-up, or the whole
         // card when it is one column) take a wheel; anywhere else it would scroll the page
@@ -89,6 +89,8 @@ async function open(url: URL, from: HTMLElement) {
             { passive: false },
         )
         document.body.append(layer)
+        // Its neighbours' pages, for previous / next, while it opens
+        warm(layer)
         siblings().forEach((el) => el.setAttribute("inert", ""))
 
         trigger = from
@@ -111,7 +113,9 @@ async function open(url: URL, from: HTMLElement) {
                 import(/* @vite-ignore */ new URL(s.getAttribute("src")!, location.href).href).catch(console.error)
             )
         )
-        if (layer === el) document.dispatchEvent(new Event("overlay:open"))
+        if (layer !== el) return
+        document.dispatchEvent(new Event("overlay:open"))
+        warm(el)
     } catch {
         flock?.then((f) => f?.stop())
         location.href = url.href
@@ -376,12 +380,135 @@ function expand(el: HTMLElement, button: HTMLAnchorElement) {
     Promise.all(morph.map((a) => a.finished)).then(done, () => {})
 }
 
+// Previous / next inside the open post (the chips in the card): the next post's page is fetched
+// and its card takes the place of this one, with the card's size and whether it is expanded
+// kept. The address and the poster it will fly back into follow the new post. The ends join
+// up: the card's links already point round the loop.
+// With the particles (converge.ts `swap()`), the card's shell stays and only its content
+// changes: the old content dissolves into small particles in place and they morph into the new
+// one (the same either way), as one gesture. Nothing moves until the new card is built: the
+// page comes from the cache below (fetched ahead), so the gesture never stops halfway for the
+// network. Without the particles (reduced motion, not loaded): a quick fade out and in.
+let switching: { stop(): void } | undefined
+// The neighbours' pages, fetched ahead (both, as soon as a post is shown; and on hovering,
+// focusing or pressing a chevron), so a switch rarely waits for the network
+const pages = new Map<string, Promise<string>>()
+function page(href: string) {
+    let p = pages.get(href)
+    if (!p) {
+        p = fetch(href).then((r) => {
+            if (!r.ok) throw new Error(String(r.status))
+            return r.text()
+        })
+        p.catch(() => pages.delete(href))
+        pages.set(href, p)
+    }
+    return p
+}
+const warm = (root: ParentNode) => {
+    for (const a of root.querySelectorAll<HTMLAnchorElement>("a[data-step]")) page(a.href)
+}
+const ahead = (e: Event) => {
+    const a = (e.target as Element).closest?.<HTMLAnchorElement>("a[data-step]")
+    if (a && layer?.contains(a)) page(a.href)
+}
+addEventListener("pointerover", ahead, { passive: true })
+addEventListener("pointerdown", ahead, { passive: true })
+addEventListener("focusin", ahead)
+async function step(url: URL, which: string, keyed = false) {
+    const el = layer
+    if (!el || busy) return
+    busy = true
+    // An expand still running would be measured mid-way: finish it first
+    morphDone?.()
+    rippling?.()
+    const old = el.firstElementChild as HTMLElement
+    const oldPost = old.querySelector<HTMLElement>(".post")
+    // The poster the card will go back into on close is the new post's own
+    const card = [...document.querySelectorAll<HTMLAnchorElement>(".card a")].find((a) => a.pathname === url.pathname)
+    let sw: { stop(): void; finished: Promise<void> } | undefined
+    try {
+        // Everything heavy first, before anything moves: the page (from the cache, normally),
+        // parsed, its styles brought over, its card built
+        const doc = new DOMParser().parseFromString(await page(url.href), "text/html")
+        const main = doc.querySelector<HTMLElement>('main[data-barba-namespace="entry"]')
+        if (layer !== el) return
+        if (!main) throw new Error("no entry")
+        sync(doc)
+        main.removeAttribute("data-barba")
+        main.removeAttribute("data-barba-namespace")
+        const next = document.importNode(main, true)
+        const nextPost = next.querySelector<HTMLElement>(".post")
+        const info = oldPost?.style.getPropertyValue("--info-w")
+        if (info) nextPost?.style.setProperty("--info-w", info)
+        const m = reduced.matches ? undefined : await particles
+        if (layer !== el) return
+        // The new card in the old one's place, its address, title and poster, the keyboard on
+        // the chip that was pressed (the old one has gone); switched by an arrow key, on the
+        // layer (no ring on a chip: Vansh, 2026-11-07)
+        const put = () => {
+            old.replaceWith(next)
+            history.replaceState({ overlay: true }, "", url)
+            document.title = doc.title
+            el.setAttribute("aria-label", doc.title)
+            if (card) {
+                if (trigger) trigger.style.opacity = ""
+                if (m) card.style.opacity = "0"
+                trigger = card
+            }
+            if (!keyed) el.querySelector<HTMLElement>(`[data-step="${which}"]`)?.focus({ preventScroll: true })
+            else if (!el.contains(document.activeElement)) el.focus({ preventScroll: true })
+        }
+        if (m && oldPost && nextPost) {
+            // The particles take the old content's colours first; then its stages stop and let
+            // go now, not at the turn, where a WebGL teardown would stall the gesture
+            sw = m.swap(oldPost, card, () => {
+                if (layer !== el) return
+                put()
+                return nextPost
+            })
+            switching = sw
+            document.dispatchEvent(new CustomEvent("overlay:close", { detail: old }))
+            // As on opening, the new card's scripts (the stage loader) and "overlay:open" wait
+            // until its content has settled, so an experiment booting cannot stall it
+            await sw.finished
+            if (layer !== el || switching !== sw) return
+        } else {
+            if (!reduced.matches) await old.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, easing: "ease-in", fill: "forwards" }).finished
+            if (layer !== el) return
+            document.dispatchEvent(new CustomEvent("overlay:close", { detail: old }))
+            if (!reduced.matches) next.style.opacity = "0"
+            put()
+        }
+        await Promise.all(
+            [...doc.querySelectorAll<HTMLScriptElement>("script[type=module][src]")].map((s) =>
+                import(/* @vite-ignore */ new URL(s.getAttribute("src")!, location.href).href).catch(console.error)
+            )
+        )
+        if (layer !== el) return
+        document.dispatchEvent(new Event("overlay:open"))
+        warm(el)
+        if (!sw && !reduced.matches) next.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240, easing: "ease-out" }).finished.then(() => (next.style.opacity = ""), () => (next.style.opacity = ""))
+    } catch {
+        sw?.stop()
+        location.href = url.href
+    } finally {
+        if (switching === sw) switching = undefined
+        busy = false
+    }
+}
+
 const home = document.title
 
 function remove(instant = false) {
     if (!layer) return
     const gone = layer
     layer = undefined
+    // A switch to the previous / next post in flight: let go of it, both cards' content as it is
+    // (the close morph below takes the card that is in the layer now)
+    switching?.stop()
+    switching = undefined
+    pages.clear()
     pushed = false
     siblings().forEach((el) => el.removeAttribute("inert"))
     document.title = home
@@ -415,12 +542,13 @@ function remove(instant = false) {
                   })
                 : (opening?.then((f) => f?.stop()), undefined)
         // (with the particles the card morphs itself back into the poster: only the scrim
-        // clears here, once the card is on its way)
+        // clears here, from the start and quickly: the card is gone in the morph's first half,
+        // and a scrim still fading after that sits over the grid on its own)
         const anims = back
             ? []
             : [panel.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "translateY(12px)" }], { duration: 380, easing: "cubic-bezier(0.4, 0, 0.2, 1)", fill: "forwards" })]
         const fade = back
-            ? scrim(gone, 1, 0, { duration: 560, delay: 260, easing: "ease-in-out", fill: "forwards" })
+            ? scrim(gone, 1, 0, { duration: 380, easing: "ease-out", fill: "forwards" })
             : [gone.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 420, delay: 80, easing: "ease-in-out", fill: "forwards" })]
         Promise.all([...anims.map((a) => a.finished), ...fade.map((a) => a.finished), back?.catch(() => {})]).then(
             () => {
@@ -430,7 +558,21 @@ function remove(instant = false) {
             () => {}
         )
     }
-    trigger?.focus({ preventScroll: true })
+    // Focus goes back to the card that opened it, without the ring Esc would otherwise leave
+    // there (data-quiet, global.css); the next key or a blur brings the ring back
+    if (trigger) {
+        const t = trigger
+        t.dataset.quiet = ""
+        const loud = () => {
+            delete t.dataset.quiet
+            t.removeEventListener("blur", loud)
+            removeEventListener("keydown", loud, true)
+        }
+        t.addEventListener("blur", loud)
+        // Not the Esc that is closing it now: that key is already being handled
+        setTimeout(() => t.dataset.quiet !== undefined && addEventListener("keydown", loud, true), 0)
+        t.focus({ preventScroll: true })
+    }
 }
 
 // Closed from the page (the back chip, Esc): Back out of the pushed entry, which closes it
@@ -452,11 +594,19 @@ addEventListener(
             e.stopImmediatePropagation()
             return dismiss()
         }
+        // Previous / next post: the card is swapped for the neighbour's
+        if (layer?.contains(a) && a.dataset.step) {
+            e.preventDefault()
+            e.stopImmediatePropagation()
+            return step(new URL(a.href), a.dataset.step)
+        }
         // The card's expand corner: the card grows to fill the window, edge to edge, like a
         // page; again and it goes back
         if (layer?.contains(a) && a.classList.contains("expand")) {
             e.preventDefault()
             e.stopImmediatePropagation()
+            // Not while the card is switching to another post: its content is mid-flight
+            if (busy) return
             return expand(layer, a)
         }
         if (layer || !a.closest(".card") || a.origin !== location.origin || !SAME.test(a.pathname)) return
@@ -469,6 +619,17 @@ addEventListener(
 
 addEventListener("keydown", (e) => {
     if (e.key === "Escape" && layer) dismiss()
+    // The arrow keys switch posts like the chevrons (Vansh, 2026-11-07), but not with a
+    // modifier, in a field (the dev panels' sliders and inputs), or on an experiment's stage
+    if ((e.key !== "ArrowLeft" && e.key !== "ArrowRight") || !layer || busy || e.defaultPrevented) return
+    if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
+    const t = e.target as HTMLElement | null
+    if (t?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable=false]), [data-stage], .tune-dock")) return
+    const which = e.key === "ArrowLeft" ? "prev" : "next"
+    const a = layer.querySelector<HTMLAnchorElement>(`a[data-step="${which}"]`)
+    if (!a) return
+    e.preventDefault()
+    step(new URL(a.href), which, true)
 })
 
 // Back closes the overlay (and Forward would not reopen it: that is a normal page then)

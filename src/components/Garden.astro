@@ -1,0 +1,136 @@
+---
+import { Image } from "astro:assets"
+import light from "../assets/footer/garden-light.png"
+import dark from "../assets/footer/garden-dark.png"
+---
+
+<!-- The garden strip at the bottom of every page (Figma 3203:17832 "image 117", and 3273:17727
+     for dark): 323px tall at 1440, the full width. It is the real garden (src/experiments/garden,
+     from the soundhub repo), started when it comes near the screen; the pictures are only what
+     stands there until then, and under reduced motion -->
+<div class="garden" data-garden>
+    <div class="still" aria-hidden="true">
+        <Image class="by-light" src={light} alt="" width={1440} loading="lazy" />
+        <Image class="by-dark" src={dark} alt="" width={1440} loading="lazy" />
+    </div>
+    <canvas aria-label="A small garden of dots: click to plant, drag to move, hover to make it sway"></canvas>
+</div>
+
+<script>
+    import type { Experiment } from "../lib/types"
+
+    const box = document.querySelector<HTMLElement>("[data-garden]")
+    const canvas = box?.querySelector("canvas")
+    const root = document.documentElement
+    if (box && canvas && matchMedia("(prefers-reduced-motion: no-preference)").matches) {
+        type Garden = Experiment & { recolor(c: Record<string, string>): void }
+        let garden: Garden | undefined
+        let seen = false
+        // Settings from the dev panel (garden-tune.ts), over what the page gives it
+        let overrides: Record<string, unknown> = {}
+
+        // Its dots read the page: the page's grey for the icon, birds that show on it (the grid is off)
+        const colours = () => {
+            const css = getComputedStyle(root)
+            const dark = root.dataset.theme === "dark"
+            const token = (name: string) => css.getPropertyValue(name).trim()
+            return {
+                birdColor: dark ? "rgba(255,255,255,0.6)" : token("--primary"),
+                textColor: token("--gray-500"),
+            }
+        }
+        const sync = () => {
+            const run = seen && !document.hidden
+            if (run) garden?.resume()
+            else garden?.pause()
+        }
+
+        const start = async () => {
+            try {
+                const { default: mount } = await import("../experiments/garden/main")
+                garden = mount(canvas, { ...colours(), showCounter: false, ...overrides }) as Garden
+                box.dataset.state = "live"
+                sync()
+            } catch (err) {
+                console.error(err)
+            }
+        }
+        let loaded = false
+        new IntersectionObserver(
+            ([e]) => {
+                seen = e.isIntersecting
+                if (seen && !loaded) {
+                    loaded = true
+                    start()
+                } else sync()
+            },
+            { rootMargin: "200px" },
+        ).observe(box)
+        document.addEventListener("visibilitychange", sync)
+        document.addEventListener("theme:change", () => garden?.recolor({ ...colours(), ...overrides }))
+        if (import.meta.env.DEV) {
+            // Its controls, as in Framer (the build strips this): changed settings start it again
+            document.addEventListener("garden:options", (e) => {
+                overrides = (e as CustomEvent).detail
+                if (!garden) return
+                garden.stop()
+                garden = undefined
+                start()
+            })
+            import("../lib/garden-tune")
+        }
+    }
+</script>
+
+<style>
+    .garden {
+        position: relative;
+        overflow: hidden;
+        height: clamp(150px, 22.43vw, 323px);
+        margin-top: clamp(12px, 1.6vw, 23px);
+    }
+    .still {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+    }
+    .still :global(img) {
+        position: absolute;
+        max-width: none;
+    }
+    /* Light: the bottom of the picture, cropped as the frame does (170% tall, up 70%) */
+    .by-light {
+        left: -0.02%;
+        top: -70.22%;
+        width: 100.04%;
+        height: 170.22%;
+    }
+    .by-dark {
+        display: none;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-position: bottom;
+    }
+    :global(html[data-theme="dark"]) .by-light {
+        display: none;
+    }
+    :global(html[data-theme="dark"]) .by-dark {
+        display: block;
+    }
+    canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+        /* Hidden until the garden has started: the picture stands in */
+        visibility: hidden;
+    }
+    [data-state="live"] canvas {
+        visibility: visible;
+    }
+    [data-state="live"] .still {
+        visibility: hidden;
+    }
+</style>

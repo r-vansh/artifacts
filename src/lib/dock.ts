@@ -182,7 +182,10 @@ if (fine.matches && !reduced.matches) {
         open = true
         kick()
     })
-    document.addEventListener("overlay:close", () => {
+    document.addEventListener("overlay:close", (e) => {
+        // Not a post switching to its neighbour, which closes only its old card (overlay.ts):
+        // the overlay, and the grid's stillness under it, stay
+        if ((e as CustomEvent<HTMLElement>).detail.localName == "main") return
         open = false
         kick()
     })

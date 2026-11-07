@@ -69,6 +69,10 @@ const crosses = (i: number) => COLUMNS.filter((n) => i % n < n - 1 && i + n + 1 
         backdrop-filter: blur(16px);
         -webkit-backdrop-filter: blur(16px);
     }
+    /* Dark (Figma 3274:17839): Gray/100 at 60% */
+    :global(html[data-theme="dark"] .overlay::before) {
+        background: color-mix(in srgb, var(--gray-100) 60%, transparent);
+    }
     :global(.overlay.on) {
         opacity: 1;
     }

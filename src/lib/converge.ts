@@ -47,6 +47,12 @@ export const params = {
     handover: 0.8, // the real card takes over from the stand-in from this share (over 0.15)
     blur: 14, // px: the card's blur as it leaves the poster
     density: 600, // px² of window per particle (fewer particles when higher)
+    // Switching to the previous / next post inside the open card (`swap()`)
+    switchTime: 540, // ms: the whole switch, one gesture from the click to the new content settled
+    switchTurn: 0.4, // the turn, as a share of it: the old content gone, the new card in, the stir at its widest
+    switchScatter: 6, // px: how far the particles stir about their spots at the turn
+    switchFlow: 12, // px: how far they flow towards the new content after it
+    switchBlur: 5, // px: the content's blur, at its peak at the turn
 }
 const all = () => params.flight + params.spread
 const FRAME = 40 // px: the card's frame (its guides are this far in)
@@ -79,7 +85,9 @@ const token = (name: string) => rgb(getComputedStyle(document.documentElement).g
 // An element's colours on a G x G grid (an image or 2D canvas drawn tiny, else its fill), as a
 // lookup by position in its box (0..1)
 function colours(el: Element | null | undefined): (u: number, v: number) => RGB {
-    const fill = el ? rgb(getComputedStyle(el).backgroundColor) : token("--gray-100")
+    const bg = el && getComputedStyle(el).backgroundColor
+    // A clear background (a <picture>, an image) is not black: the media's own grey then
+    const fill = bg && !/^rgba\(.*,\s*0\)$|^transparent$/.test(bg) ? rgb(bg) : token("--gray-100")
     const flat = () => fill
     const src = el instanceof HTMLImageElement ? el : el?.querySelector?.("img, canvas")
     if (!(src instanceof HTMLImageElement || src instanceof HTMLCanvasElement)) return flat
@@ -198,6 +206,28 @@ const between = (a: Box, b: Box, k: number): Box => ({ x: mix(a.x, b.x, k), y: m
 // out, blurred through the texture's mipmaps. As the bulge relaxes, the real card fades in
 // over the stand-in and the stand-in out. No WebGL2: the morph without the bulge.
 
+// Text word by word where the page set it (window px), with its font and colour
+function wordsIn(els: Iterable<HTMLElement>) {
+    const words: { font: string; spacing: string; colour: string; word: string; r: DOMRect }[] = []
+    const range = document.createRange()
+    for (const el of els) {
+        const cs = getComputedStyle(el)
+        const font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`
+        const spacing = cs.letterSpacing === "normal" ? "0px" : cs.letterSpacing
+        const lower = cs.textTransform === "lowercase"
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            const text = node.textContent ?? ""
+            for (const m of text.matchAll(/\S+/g)) {
+                range.setStart(node, m.index!)
+                range.setEnd(node, m.index! + m[0].length)
+                words.push({ font, spacing, colour: cs.color, word: lower ? m[0].toLowerCase() : m[0], r: range.getBoundingClientRect() })
+            }
+        }
+    }
+    return words
+}
+
 // The card as a picture (card px, at the window's pixel ratio, at most 2). Everything is
 // measured once, here, while the card is laid out untouched; `paint()` draws from those
 // measurements (again when the first image arrives, mid-morph, when the card is scaled)
@@ -222,23 +252,7 @@ function snapshot(post: HTMLElement, box: Box) {
     })
     const chips = [...post.querySelectorAll<HTMLElement>(".chip")].map((chip) => ({ r: rel(chip.getBoundingClientRect()), fill: getComputedStyle(chip).backgroundColor }))
     // The text, word by word where the page set it, with its font and colour
-    const words: { font: string; spacing: string; colour: string; word: string; r: Box }[] = []
-    for (const el of post.querySelectorAll<HTMLElement>("h1, .summary, .tags span, .chip")) {
-        const cs = getComputedStyle(el)
-        const font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`
-        const spacing = cs.letterSpacing === "normal" ? "0px" : cs.letterSpacing
-        const lower = cs.textTransform === "lowercase"
-        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
-        const range = document.createRange()
-        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-            const text = node.textContent ?? ""
-            for (const m of text.matchAll(/\S+/g)) {
-                range.setStart(node, m.index!)
-                range.setEnd(node, m.index! + m[0].length)
-                words.push({ font, spacing, colour: cs.color, word: lower ? m[0].toLowerCase() : m[0], r: rel(range.getBoundingClientRect()) })
-            }
-        }
-    }
+    const words = wordsIn(post.querySelectorAll<HTMLElement>("h1, .summary, .tags span, .chip")).map((w) => ({ ...w, r: rel(w.r) }))
     const paint = () => {
         g.setTransform(dpr, 0, 0, dpr, 0, 0)
         g.clearRect(0, 0, box.w, box.h)
@@ -652,3 +666,290 @@ export function leave(post: HTMLElement, from: HTMLElement) {
     })
 }
 
+// Previous / next inside the open card (Vansh, 2026-11-07: first "just scramble small particles
+// and switch posts. i don't want too much moving switch", then "more smooth and morphed. but
+// not slow"). The card's shell (its white, edge, guides, corners and the previous / next chips)
+// stays still: it reads as the same card changing what it shows. Nothing flies, slides or
+// scales. The old content (title, summary, tags, the other chips, the media column) dissolves
+// under a soft blur into small particles of its own colours, which stir a few px about their
+// spots; as soon as the new card is there (at once, when it was prefetched) the particles morph
+// into it: they turn the new content's colours and flow a little (small, local, eased) towards
+// it, the media's onto the new picture's strong parts, the old words' onto the nearest new
+// words, while new words' particles come up where those are; the new content comes up out of
+// the same blur under them, which relaxes as they fade. One continuous dissolve, not out,
+// swap, in. The real old and new content never show together (the new starts the moment the
+// old is gone), and the particles fade where the new media is first, so none speckle it once
+// it is solid. Every ramp is a smoothstep or the site's FLOW. A 2D canvas only: no WebGL.
+
+// A CSS cubic-bezier as a function of time (by bisection: a few calls a frame)
+function bezier(x1: number, y1: number, x2: number, y2: number) {
+    const at = (a: number, b: number, s: number) => 3 * a * s * (1 - s) ** 2 + 3 * b * s * s * (1 - s) + s ** 3
+    return (t: number) => {
+        if (t <= 0 || t >= 1) return clamp(t)
+        let lo = 0
+        let hi = 1
+        for (let i = 0; i < 18; i++) {
+            const s = (lo + hi) / 2
+            if (at(x1, x2, s) < t) lo = s
+            else hi = s
+        }
+        return at(y1, y2, (lo + hi) / 2)
+    }
+}
+const FLOW = bezier(0.16, 1, 0.3, 1) // the site's ease: quick to start, a long soft settle
+
+type Mote = Dot & {
+    kind: 0 | 1 | 2 // 0 on the media (old colours, then new), 1 the old words, 2 the new words
+    ox: number // where the stir takes it (px off its spot), and its wobble's phase
+    oy: number
+    ph: number
+    dx: number // how far it flows towards the new content (px)
+    dy: number
+    cg: RGB // its colour before the morph, and after
+    cr: RGB
+    gone: number // how far it has faded under the new content (only grows)
+    a: number // its opacity this frame
+}
+type TextBit = { r: Box; c: RGB; weight: number }
+type Area = { r: Box; at: (u: number, v: number) => RGB }
+
+function cut(a: Box, b: Box): Box | null {
+    const x = Math.max(a.x, b.x)
+    const y = Math.max(a.y, b.y)
+    const w = Math.min(a.x + a.w, b.x + b.w) - x
+    const h = Math.min(a.y + a.h, b.y + b.h) - y
+    return w > 1 && h > 1 ? { x, y, w, h } : null
+}
+const inside = (b: Box | null, x: number, y: number) => !!b && x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h
+const lum = (c: RGB) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+
+// The parts of a card that change (the previous / next chips are shell: they stay)
+const partsOf = (post: HTMLElement) => [...post.querySelectorAll<HTMLElement>(".title, .media, .links .chip:not(.step)")]
+const freeParts = (els: HTMLElement[]) => {
+    for (const el of els) el.style.opacity = el.style.filter = el.style.willChange = ""
+}
+function styleParts(els: HTMLElement[], opacity: number, blur: number) {
+    for (const el of els) {
+        el.style.willChange = "opacity, filter"
+        el.style.opacity = String(Math.max(0.001, opacity))
+        el.style.filter = blur > 0.3 ? `blur(${blur.toFixed(1)}px)` : ""
+    }
+}
+
+// What shows of a card's content (window px): its media column between the guides, the blocks
+// in it, and its text (words in their colour, the chips in their fill)
+function contentOf(post: HTMLElement) {
+    const box = boxOf(post.getBoundingClientRect())
+    const view = cut(box, { x: 0, y: 0, w: innerWidth, h: innerHeight }) ?? box
+    // Wide, the media scrolls under the bands: what counts is what shows between the guides
+    const frame = innerWidth >= 900 ? (cut(view, { x: box.x, y: box.y + FRAME, w: box.w, h: box.h - 2 * FRAME }) ?? view) : view
+    const media = post.querySelector<HTMLElement>(".media")
+    const area = media ? cut(boxOf(media.getBoundingClientRect()), frame) : null
+    const blocks =
+        area && media
+            ? [...media.children].flatMap((el) => {
+                  const r = boxOf(el.getBoundingClientRect())
+                  return cut(r, area) ? [{ el, r }] : []
+              })
+            : []
+    const seen = new Map<string, RGB>()
+    const colour = (css: string) => seen.get(css) ?? (seen.set(css, rgb(css)), seen.get(css)!)
+    // The chips' fills count less than the words' ink (they are mostly flat)
+    const chips: TextBit[] = [...post.querySelectorAll<HTMLElement>(".links .chip:not(.step)")].map((el) => {
+        const r = boxOf(el.getBoundingClientRect())
+        return { r, c: colour(getComputedStyle(el).backgroundColor), weight: r.w * r.h * 0.3 }
+    })
+    const words: TextBit[] = wordsIn(post.querySelectorAll<HTMLElement>(".title h1, .title .summary, .title .tags span, .links .chip:not(.step)")).map((w) => ({
+        r: boxOf(w.r),
+        c: colour(w.colour),
+        weight: w.r.width * w.r.height,
+    }))
+    const texts = [...chips, ...words].filter((b) => b.r.w > 0 && cut(b.r, view))
+    return { area, blocks, texts }
+}
+
+// Spots on text (window px), picked by ink
+function textSpots(texts: TextBit[], n: number) {
+    const total = texts.reduce((s, b) => s + b.weight, 0)
+    if (!texts.length || !total) return []
+    return Array.from({ length: n }, () => {
+        let k = Math.random() * total
+        const b = texts.find((it) => (k -= it.weight) <= 0) ?? texts[texts.length - 1]
+        return { x: b.r.x + Math.random() * b.r.w, y: b.r.y + Math.random() * b.r.h, c: b.c }
+    })
+}
+// Its picture is there to take colours from (or it has none: a fill)
+const ready = (el: Element) => {
+    const img = el instanceof HTMLImageElement ? el : el.querySelector("img")
+    return !img || (img.complete && img.naturalWidth > 0)
+}
+// The colour at a point of a media column, from its blocks (the paper between them)
+const mediaAt = (blocks: Area[], paper: RGB) => (x: number, y: number) => {
+    const b = blocks.find((b) => inside(b.r, x, y))
+    return b ? b.at((x - b.r.x) / b.r.w, (y - b.r.y) / b.r.h) : paper
+}
+
+/** Previous / next: the open card's content dissolves into small particles in place and they
+ *  morph into the next post's, as one gesture over `switchTime`. Everything heavy (the page
+ *  fetched and parsed, the new card built) is done before this is called; at the turn the loop
+ *  calls `turn()` in its own frame, which puts the new card in the layer (hidden) and returns
+ *  its post, and the particles carry on into it without a pause. `finished` resolves when the
+ *  new content has settled; `stop()` lets go of it all and gives the content its look back */
+export function swap(post: HTMLElement, poster: HTMLElement | null | undefined, turn: () => HTMLElement | null | undefined) {
+    const T = params.switchTime
+    const at0 = params.switchTurn * T // the turn: the old content gone, the stir at its widest
+    const rest = T - at0
+    const old = contentOf(post)
+    const n = count()
+    const nm = Math.round(n * (old.area ? (old.texts.length ? 0.75 : 1) : 0))
+    const bg = getComputedStyle(post).backgroundColor
+    const paper = bg === "rgba(0, 0, 0, 0)" ? token("--white") : rgb(bg)
+    const mote = (x: number, y: number, c: RGB, kind: 0 | 1 | 2): Mote => {
+        const d = newDot(x, y, c)
+        // Small, like the site's other particles
+        d.s0 = d.s1 = rand(1.4, 2.4)
+        const a = Math.random() * Math.PI * 2
+        const r = params.switchScatter * Math.sqrt(Math.random())
+        return { ...d, kind, ox: Math.cos(a) * r, oy: Math.sin(a) * r, ph: Math.random() * Math.PI * 2, dx: 0, dy: 0, cg: c, cr: c, gone: 0, a: 0 }
+    }
+
+    // The media: spots over the column as it shows, in the old picture's colours
+    const oldAt = mediaAt(old.blocks.map((b) => ({ r: b.r, at: colours(b.el) })), paper)
+    const posterAt = poster && ready(posterOf(poster)) ? colours(posterOf(poster)) : null
+    const area = old.area
+    const dots: Mote[] = []
+    if (area)
+        for (let i = 0; i < nm; i++) {
+            const x = area.x + Math.random() * area.w
+            const y = area.y + Math.random() * area.h
+            const d = mote(x, y, oldAt(x, y), 0)
+            d.c0 = d.c1 = [...d.cg] as RGB
+            d.img = true
+            dots.push(d)
+        }
+    const words = n - dots.length
+    for (const p of textSpots(old.texts, words)) {
+        const d = mote(p.x, p.y, p.c, 1)
+        d.c0 = d.c1 = [...d.cg] as RGB
+        dots.push(d)
+    }
+
+    // At the turn: the new card's content, hidden, and where the particles go in it
+    const into = (next: HTMLElement) => {
+        const real = contentOf(next)
+        styleParts(partsOf(next), 0, params.switchBlur)
+        // The new media's colours (its picture's own if it is there already, else, for the
+        // first block, the poster's: the same picture; it is never waited for). Each media
+        // particle flows a little, at most `switchFlow` px, to the most marked of a few nearby
+        // points of it (away from their average tone): the dots gather on its strong parts
+        const at = mediaAt(
+            real.blocks.map((b, i) => ({ r: b.r, at: i === 0 && posterAt && !ready(b.el) ? posterAt : colours(b.el) })),
+            paper,
+        )
+        const R = params.switchFlow
+        for (const d of dots) {
+            if (d.kind !== 0) continue
+            const near = [[0, 0], ...Array.from({ length: 4 }, () => [rand(-R, R), rand(-R, R)])]
+            const cs = near.map(([x, y]) => at(d.sx + x, d.sy + y))
+            const mean = cs.reduce((s, c) => s + lum(c), 0) / cs.length
+            let best = 0
+            for (let i = 1; i < cs.length; i++) if (Math.abs(lum(cs[i]) - mean) > Math.abs(lum(cs[best]) - mean) + 6) best = i
+            d.dx = near[best][0]
+            d.dy = near[best][1]
+            d.cr = cs[best]
+        }
+        // The old words' particles flow onto the nearest of a few new word spots (if one is
+        // near enough, else they stay and fade); the new words' come up where those are
+        const spots = textSpots(real.texts, words)
+        if (spots.length)
+            for (const d of dots) {
+                if (d.kind !== 1) continue
+                let best = spots[(Math.random() * spots.length) | 0]
+                for (let i = 0; i < 5; i++) {
+                    const p = spots[(Math.random() * spots.length) | 0]
+                    if (Math.hypot(p.x - d.sx, p.y - d.sy) < Math.hypot(best.x - d.sx, best.y - d.sy)) best = p
+                }
+                if (Math.hypot(best.x - d.sx, best.y - d.sy) > R * 4) continue
+                d.dx = best.x - d.sx
+                d.dy = best.y - d.sy
+                d.cr = best.c
+            }
+        for (const p of spots.slice(0, Math.round(words * 0.6))) {
+            const d = mote(p.x, p.y, p.c, 2)
+            d.c0 = d.c1 = d.cg
+            dots.push(d)
+        }
+        return partsOf(next)
+    }
+
+    let olds = partsOf(post)
+    let news: HTMLElement[] = []
+    let turned = false
+    let gone = false
+    let done: () => void = () => {}
+    const finished = new Promise<void>((res) => (done = res))
+    // One gesture: the stir swells out of the click and back into the new content as a single
+    // bump (sin², warped so it peaks at the turn): moving all the time, slowing only for the
+    // instant it turns round, still only at the very start and end
+    const bump = (t: number) => {
+        const w = t < at0 ? (0.5 * t) / at0 : 0.5 + (0.5 * (t - at0)) / rest
+        return Math.sin(Math.PI * clamp(w)) ** 2
+    }
+    const s = swarm(
+        dots,
+        (t) => {
+            if (t < 0) return
+            // The turn, in this frame: the new card goes in, and the particles carry on into it
+            if (!turned && t >= at0) {
+                turned = true
+                freeParts(olds)
+                olds = []
+                const next = turn()
+                if (gone) return false
+                if (next) news = into(next)
+            }
+            // The old content dissolves under a blur that peaks at the turn
+            const ko = smooth(0, at0, t)
+            if (olds.length) styleParts(olds, 1 - ko, params.switchBlur * ko)
+            // The new content comes up out of the same blur right after it, settling softly
+            const k = turned ? clamp((t - at0) / rest) : 0
+            const shown = turned ? smooth(0, 0.6, k) : 0
+            if (news.length) styleParts(news, shown, params.switchBlur * (1 - FLOW(k)))
+            // The morph: colours and the small flow towards the new content, from the turn
+            const m = turned ? smooth(0, 0.7, k) : 0
+            const spread = bump(t)
+            const appear = smooth(0, at0 * 0.6, t)
+            for (const d of dots) {
+                const w = t / 110 + d.ph
+                d.x = d.sx + d.dx * m + spread * (d.ox + Math.sin(w) * 1.2)
+                d.y = d.sy + d.dy * m + spread * (d.oy + Math.cos(w * 1.3) * 1.2)
+                let a = appear
+                if (d.kind === 2) a = smooth(0, 0.4, k)
+                else if (m > 0) for (let i = 0; i < 3; i++) d.c0[i] = mix(d.cg[i], d.cr[i], m)
+                if (shown > 0) d.gone = Math.max(d.gone, d.img || inside(area, d.x, d.y) ? smooth(0.15, 0.55, shown) : smooth(0.35, 0.9, shown))
+                d.a = a * (1 - d.gone)
+            }
+            if (k >= 1) {
+                freeParts(news)
+                news = []
+                done()
+                return false
+            }
+        },
+        (d) => (d as Mote).a,
+    )
+    s.go()
+    return {
+        finished,
+        stop() {
+            if (gone) return
+            gone = true
+            s.stop()
+            freeParts(olds)
+            freeParts(news)
+            olds = []
+            news = []
+            done()
+        },
+    }
+}

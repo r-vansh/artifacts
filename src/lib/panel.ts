@@ -24,7 +24,7 @@ export interface Options<P extends Num> {
 
 const CHEVRON = `<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`
 
-const CSS = `
+export const CSS = `
 .tune {
     position: fixed;
     z-index: 10;
@@ -289,6 +289,8 @@ const DOCK_CSS = `
 }
 .tune-dock.right {
     right: 16px;
+    /* Below the dark mode cord, which hangs on this side (Cord.astro) */
+    top: 152px;
 }
 .tune-dock.left {
     left: 16px;
@@ -299,6 +301,12 @@ const DOCK_CSS = `
     flex: none;
     max-height: none;
     pointer-events: auto;
+}
+/* In the column it is the column that scrolls: a body that scrolls (but has nothing to) and
+   keeps the wheel to itself would stop the column from ever moving over the rows */
+.tune-dock > .tune .body {
+    overflow-y: visible;
+    overscroll-behavior: auto;
 }
 /* Centred while they fit (two spacers share the room), scrollable from the top when they
    do not (the spacers shrink to nothing) */

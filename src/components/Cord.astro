@@ -1,0 +1,125 @@
+---
+// The dark mode switch (Figma node 3252:17850): a dashed cord hanging from the top of the page
+// with a sun at its end. Without its physics (src/lib/cord.ts, lazy) it still sits as drawn and
+// switches (src/lib/theme.ts).
+---
+
+<div class="cord">
+    <div class="hang">
+        <svg class="rope" width="22" height="98" aria-hidden="true">
+            <path d="M9.50022 -55C12.8336 -40.8333 17.5002 -4.3 9.50022 28.5C1.50022 61.3 6.16689 88.1667 9.50022 97.5"></path>
+        </svg>
+        <button class="pull" type="button" aria-label="Switch to dark mode"><span class="sun"></span></button>
+    </div>
+</div>
+
+<script>
+    import { ready } from "../lib/theme"
+
+    // The physics and the cloth are lazy too: on idle or the first sign of a pointer
+    if (matchMedia("(prefers-reduced-motion: no-preference)").matches) {
+        const load = () => {
+            import("../lib/cord").catch(() => {})
+            ready()
+        }
+        for (const ev of ["pointerover", "pointerdown", "focusin"]) addEventListener(ev, load, { once: true, passive: true })
+        if ("requestIdleCallback" in window) requestIdleCallback(load, { timeout: 3000 })
+        else setTimeout(load, 2000)
+        // Its tuning panel, only under `npm run dev` (the build strips this)
+        if (import.meta.env.DEV) {
+            import("../lib/cord-tune")
+            import("../lib/cloth-tune")
+            import("../lib/scrub")
+        }
+    }
+</script>
+
+<style>
+    /* Clips the swing, so the cord can never make the page scroll. Over the page's content (the
+       home page's .intro would take the sun's clicks) and the falling cloth (40, cloth.ts), under
+       an open post (50) and the loader (100); it takes no clicks but the sun's */
+    .cord {
+        /* The whole thing, larger than the Figma drawing (Vansh, 2026-11-06). Everything inside
+           is in the drawing's own px; cord.ts reads this to turn the pointer into them */
+        --size: 1.2;
+        position: absolute;
+        z-index: 41;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 400px;
+        overflow: clip;
+        pointer-events: none;
+    }
+    .hang {
+        position: absolute;
+        top: 0;
+        left: calc(87.5% + 7px);
+        transform: scale(var(--size));
+        transform-origin: 0 0;
+    }
+    .rope {
+        position: absolute;
+        top: 0;
+        left: 0;
+        overflow: visible;
+        pointer-events: none;
+    }
+    .rope path {
+        fill: none;
+        stroke: var(--gray-500);
+        stroke-dasharray: 2 2;
+    }
+    /* A target round the sun, whose top is where the cord ends (9.5, 97.5 in the Figma frame) */
+    .pull {
+        position: absolute;
+        top: 81.5px;
+        left: -12.5px;
+        width: 44px;
+        height: 44px;
+        padding: 0;
+        border: 0;
+        background: none;
+        pointer-events: auto;
+        touch-action: none;
+        color: var(--gray-500);
+        cursor: grab;
+    }
+    .pull:active {
+        cursor: grabbing;
+    }
+    .pull:hover {
+        color: var(--gray-main);
+    }
+    /* The tokens are already turned over while the light page is still on top (a peek, theme.ts):
+       this is what Gray/Main is on the light page */
+    :global(html[data-peek]) .pull:hover {
+        color: var(--gray-50);
+    }
+    /* The sun as in public/icons/sun.svg (a mask, so it takes the colour), turned about the point
+       the cord holds it by; there and at -15deg it sits exactly as in the Figma frame */
+    .sun {
+        position: absolute;
+        top: calc(16px - 0.13px);
+        left: calc(22px - 9.8px);
+        width: 19px;
+        height: 14px;
+        background: currentColor;
+        mask: url("/icons/sun.svg") center / 19px 14px no-repeat;
+        transform: rotate(-15deg);
+        transform-origin: 9.8px 0.13px;
+    }
+    /* The moon (Figma 3203:17832, public/icons/moon.svg) on the light page, where the pull
+       goes dark: the same hold at the cord's end, drawn already turned by the sun's tilt so it
+       rests as in the frame. cord.ts says which shows (data-icon, by the page on top, which is
+       not data-theme during a pull or a fall); until it has loaded, by data-theme */
+    :global(html:not([data-theme="dark"])) .cord:not([data-icon]) .sun,
+    .cord[data-icon="moon"] .sun {
+        top: 11.28px;
+        left: 15.36px;
+        width: 19.85px;
+        height: 21.4px;
+        mask: url("/icons/moon.svg") center / 19.85px 21.4px no-repeat;
+        transform-origin: 6.64px 4.835px;
+    }
+</style>

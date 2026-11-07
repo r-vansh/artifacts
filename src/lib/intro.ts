@@ -198,6 +198,16 @@ function fit() {
     hctx?.setTransform(dpr, 0, 0, dpr, 0, 0)
 }
 
+// The particles' colours, mixed from two tokens: their own part's grey (the heading and the line
+// are different greys) and the primary orange
+function tint(o: CanvasRenderingContext2D) {
+    const orange = rgb(o, getComputedStyle(document.documentElement).getPropertyValue("--primary").trim())
+    shades = parts.map((el) => {
+        const grey = rgb(o, getComputedStyle(el).color)
+        return Array.from({ length: SHADES }, (_, i) => `rgb(${grey.map((v, j) => Math.round(v + ((orange[j] - v) * i) / (SHADES - 1))).join(",")})`)
+    })
+}
+
 function measure() {
     if (!intro) return
     for (const el of parts) el.style.transform = ""
@@ -234,13 +244,7 @@ function measure() {
     const off = document.createElement("canvas")
     const o = off.getContext("2d", { willReadFrequently: true })
     if (!o) return
-    // Their colours, mixed from two tokens: their own part's grey (the heading and the line are
-    // different greys) and the primary orange
-    const orange = rgb(o, getComputedStyle(document.documentElement).getPropertyValue("--primary").trim())
-    shades = parts.map((el) => {
-        const grey = rgb(o, getComputedStyle(el).color)
-        return Array.from({ length: SHADES }, (_, i) => `rgb(${grey.map((v, j) => Math.round(v + ((orange[j] - v) * i) / (SHADES - 1))).join(",")})`)
-    })
+    tint(o)
     dots = []
     parts.forEach((el, k) => {
         const r = el.getBoundingClientRect()
@@ -729,6 +733,12 @@ async function start() {
 
 document.addEventListener("nav:enter", start)
 document.addEventListener("nav:leave", stop)
+// The dark mode switch changed the text's greys
+document.addEventListener("theme:change", () => {
+    const o = document.createElement("canvas").getContext("2d")
+    if (o && dots.length) tint(o)
+    kick()
+})
 start()
 
 // After a change to `params`: wakes the loop so it shows, and samples the text again when

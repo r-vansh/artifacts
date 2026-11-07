@@ -264,6 +264,10 @@ export interface Options {
         changes. */
     gateOn: boolean
     gateOpacity: number
+    /** While the gate waits: how much faster the form drifts, and how much further. Faint as it is,
+        at the speed that suits the full-strength form it looks almost still */
+    gateSpeed: number
+    gateSway: number
     gateText: string
     gateTouchText: string
     gateTime: number
@@ -455,6 +459,8 @@ export const defaults: Options = {
     exitRipple: true,
     gateOn: true,
     gateOpacity: 0.15,
+    gateSpeed: 2.5,
+    gateSway: 1.4,
     gateText: "click anywhere to enter",
     gateTouchText: "Tap anywhere to enter",
     gateTime: 0.6,
@@ -478,7 +484,11 @@ export const defaults: Options = {
 type NumKey = { [K in keyof Options]: Options[K] extends number ? K : never }[keyof Options]
 
 const MIN_QUALITY = 0.5 // lowest share of the device pixel ratio the watchdog drops to
-const SLOW_FRAME = 1000 / 40 // ms; slower than this on average and the resolution drops
+const SLOW_FRAME = 1000 / 45 // ms; slower than this on average and the resolution drops
+// A high refresh rate is no reason to draw this flat out: the GPU would have nothing left, and a
+// saturated GPU is what makes the page and the cursor pill lag
+const MAX_FRAME = 1000 / 60 // ms; at most this often
+const GATE_FRAME = 1000 / 30 // ms; while the gate waits: faint and slow, it doesn't show
 const DEG = Math.PI / 180
 
 const mount: Mount<Options> = (canvas, options) => {
@@ -851,7 +861,8 @@ const mount: Mount<Options> = (canvas, options) => {
         drops[slot].fadeIn = fadeIn
         u.uDropAt.value[slot].set(0, 0)
         if (offset) u.uDropAt.value[slot].copy(offset)
-        sound.ripple(size)
+        // While the gate waits they fall in silence: nothing may sound before the first click
+        if (!gated) sound.ripple(size)
     }
     function fireShock() {
         lastDrop = time
@@ -869,9 +880,9 @@ const mount: Mount<Options> = (canvas, options) => {
     const updateShock = () => {
         const dt = Math.min(0.1, Math.max(0, time - lastTick))
         lastTick = time
-        if (!gated && c.shockEvery > 0 && lastDrop >= 0 && time - lastDrop > c.shockEvery) fireShock()
+        if (c.shockEvery > 0 && (gated || lastDrop >= 0) && time - lastDrop > c.shockEvery) fireShock()
         // Now and then a smaller drop near the middle
-        if (!gated && c.shockSecondary > 0 && Math.random() < c.shockSecondary * dt) {
+        if (!entering && c.shockSecondary > 0 && Math.random() < c.shockSecondary * dt) {
             const a = Math.random() * Math.PI * 2
             drop(0.35 + Math.random() * 0.25, new THREE.Vector2(Math.cos(a), Math.sin(a)).multiplyScalar(c.craterRadius * (0.3 + Math.random())))
         }
@@ -932,7 +943,9 @@ const mount: Mount<Options> = (canvas, options) => {
     const touch = window.matchMedia?.("(hover: none)").matches ?? false
     // The label is the cursor's stand-in (Figma node 3202:17823): a dark pill with a mouse
     // icon and the text, 6px padding and a 4px gap, Geist Light 16px in Gray/100 on a
-    // gradient from Gray/700 to Gray/900, blurred a little behind and lifted by two shadows
+    // gradient from Gray/700 to Gray/900, lifted by two shadows. The frame's 2.5 px backdrop blur
+    // is left out: nothing shows through the opaque fill, and over a full-window canvas it was
+    // costing every frame. A box-shadow, not a drop-shadow filter, for the same reason
     const label = document.createElement("div")
     Object.assign(label.style, {
         position: "fixed",
@@ -945,8 +958,8 @@ const mount: Mount<Options> = (canvas, options) => {
         gap: "4px",
         padding: "6px",
         background: "linear-gradient(128.5deg, var(--gray-700, #5c5c61) 0%, var(--gray-800, #434347) 21%, var(--gray-900, #2a2a2d) 40%)",
-        backdropFilter: "blur(2.5px)",
-        filter: "drop-shadow(0 3px 2px color-mix(in srgb, var(--black, #000) 15%, transparent)) drop-shadow(0 14px 12px color-mix(in srgb, var(--black, #000) 15%, transparent))",
+        boxShadow: "0 3px 2px color-mix(in srgb, var(--black, #000) 15%, transparent), 0 14px 12px color-mix(in srgb, var(--black, #000) 15%, transparent)",
+        willChange: "transform",
         font: "300 16px/1 var(--sans, sans-serif)",
         letterSpacing: "-0.03em",
         textTransform: "lowercase",
@@ -987,6 +1000,8 @@ const mount: Mount<Options> = (canvas, options) => {
         settle()
         sound.mute(true)
         state.fade = c.gateOpacity
+        // The first ripple soon, so that it isn't still for the first few seconds
+        lastDrop = time - c.shockEvery + 1
         if (!touch && !still) {
             canvas.style.cursor = "none"
             document.body.style.cursor = "none"
@@ -1007,6 +1022,8 @@ const mount: Mount<Options> = (canvas, options) => {
         if (!gated) return
         gated = false
         entering = true
+        // No ripple, and no sound of one, in the moment before the impact
+        lastDrop = -1
         label.style.opacity = "0"
         canvas.style.cursor = ""
         document.body.style.cursor = ""
@@ -1119,7 +1136,9 @@ const mount: Mount<Options> = (canvas, options) => {
     const onGateKey = (e: KeyboardEvent) => {
         if (e.key === "Enter" || e.key === " ") enter()
     }
-    window.addEventListener("pointermove", onGateMove)
+    // As soon as the browser has it, where it can say so, not once a frame
+    const gateMove = "onpointerrawupdate" in window ? "pointerrawupdate" : "pointermove"
+    window.addEventListener(gateMove, onGateMove as EventListener, { passive: true })
     window.addEventListener("pointerdown", onGatePointer)
     window.addEventListener("keydown", onGateKey)
 
@@ -1216,7 +1235,7 @@ const mount: Mount<Options> = (canvas, options) => {
             tf.uWarp.value = c.turbWarp
             tf.uSwirl.value = c.turbSwirl
             tf.uEddies.value = c.turbEddies
-            tu.uStrength.value = (c.turbStrength * burst()) / 1000
+            tu.uStrength.value = ((c.turbStrength * burst()) / 1000) * (gated || entering ? c.gateSway : 1)
             const settle = 1 - Math.exp(-introTime / Math.max(c.turbCalmTime, 0.05))
             tf.uCalm.value = c.turbCalm * settle
             tf.uOutward.value = c.turbOutward * (1 - Math.exp(-introTime / Math.max(c.turbSettle, 0.05)))
@@ -1249,21 +1268,29 @@ const mount: Mount<Options> = (canvas, options) => {
         }
     }
 
+    let nextDraw = 0
     const loop = (t: number) => {
         raf = 0
         if (!running) return
+        // Not this one: the next one the screen offers
+        const every = gated ? GATE_FRAME : MAX_FRAME
+        if (t < nextDraw - 1) {
+            raf = requestAnimationFrame(loop)
+            return
+        }
+        nextDraw = Math.max(nextDraw + every, t)
         const dt = last ? Math.min(t - last, 100) : 16
         last = t
         if (!scrubbing) {
             time += dt / 1000
-            if (!still) turbTime += (dt / 1000) * c.turbSpeed * burst()
+            if (!still) turbTime += (dt / 1000) * c.turbSpeed * burst() * (gated || entering ? c.gateSpeed : 1)
             introTime += dt / 1000
             intro.time(Math.min(introTime, intro.duration()))
         }
 
         // Draw at a lower resolution when frames stay slow; marks keep their size
         frameAvg += (dt - frameAvg) * 0.05
-        slowFor = frameAvg > SLOW_FRAME ? slowFor + dt : 0
+        slowFor = frameAvg > Math.max(SLOW_FRAME, every * 1.4) ? slowFor + dt : 0
         if (slowFor > 1500 && quality > MIN_QUALITY) {
             quality = Math.max(MIN_QUALITY, quality * 0.8)
             resize()
@@ -1474,6 +1501,8 @@ const mount: Mount<Options> = (canvas, options) => {
                                 get: () => (c.gateOn ? "on" : "off"),
                                 set: (v: string) => (c.gateOn = v === "on"),
                             },
+                            { ...opt("gateSpeed"), label: "Waiting drift speed", hint: "How much faster the form drifts while it waits", min: 0, max: 12, step: 0.1 },
+                            { ...opt("gateSway"), label: "Waiting drift size", hint: "How much further it moves while it waits", min: 0, max: 5, step: 0.05 },
                             { ...opt("gateOpacity"), label: "Waiting opacity", min: 0, max: 1, step: 0.01, set: (v: number) => { c.gateOpacity = v; if (gated) state.fade = v } },
                             { ...opt("gateDelay"), label: "Enter delay (s)", hint: "A short buffer between the click and the impact", min: 0, max: 1, step: 0.01 },
                             { ...opt("gateLabelSize"), label: "Label size (px)", min: 8, max: 48, step: 1, set: (v: number) => { c.gateLabelSize = v; label.style.fontSize = `${v}px` } },
@@ -1752,7 +1781,7 @@ const mount: Mount<Options> = (canvas, options) => {
             document.body.style.cursor = ""
             document.removeEventListener("mouseout", onGateLeave)
             document.documentElement.removeAttribute("data-loader")
-            window.removeEventListener("pointermove", onGateMove)
+            window.removeEventListener(gateMove, onGateMove as EventListener)
             window.removeEventListener("pointerdown", onGatePointer)
             window.removeEventListener("keydown", onGateKey)
             gui?.destroy()

@@ -58,7 +58,8 @@ const external = d.kind === "external"
         top: calc(100% + (var(--row-gap) + 20px) / 2 - 19px);
         width: 38px;
         height: 38px;
-        background: url("/crosshair.svg") no-repeat center / 38px 38px;
+        background: var(--gray-200);
+        mask: url("/crosshair.svg") no-repeat center / 38px 38px;
         pointer-events: none;
     }
     .cross.n5 {
@@ -123,6 +124,14 @@ const external = d.kind === "external"
         background: var(--gray-200);
         overflow: hidden;
         transform: var(--t, none);
+    }
+    /* Dark (Figma 3273:17727): the loading square is Gray/100 and the row Gray/800, which is
+       not what turning the ramp over gives (Gray/200, Gray/900) */
+    :global(html[data-theme="dark"]) .card a {
+        background: var(--gray-100);
+    }
+    :global(html[data-theme="dark"]) .meta {
+        color: var(--gray-800);
     }
     /* Shade as the tile turns away on the bulge: black at --shade */
     .card a::after {
