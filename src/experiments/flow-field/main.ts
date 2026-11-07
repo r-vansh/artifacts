@@ -488,6 +488,8 @@ const MIN_QUALITY = 0.5 // lowest share of the device pixel ratio (tier 3)
 // A high refresh rate is no reason to draw this flat out: the GPU would have nothing left, and a
 // saturated GPU is what makes the page and the cursor pill lag
 const MAX_FRAME = 1000 / 60 // ms; at most this often
+const STILL_MS = 60 // ms of the main thread in one draw of the gate: twice in a row and the gate stands still
+const BIG_MS = 400 // ...or once, if it is this long
 const GATE_FRAME = 1000 / 30 // ms; while the gate waits: faint and slow, it doesn't show
 
 // Quality tiers: what the device's GPU actually manages decides how much it draws, so a strong
@@ -1161,6 +1163,12 @@ const mount: Mount<Options> = (canvas, options) => {
         if (!gated) return
         gated = false
         entering = true
+        if (frozen) {
+            frozen = false
+            delete canvas.dataset.still
+            last = 0
+            if (running && !raf) raf = requestAnimationFrame(loop)
+        }
         // No ripple, and no sound of one, in the moment before the impact
         lastDrop = -1
         label.style.opacity = "0"
@@ -1546,6 +1554,8 @@ const mount: Mount<Options> = (canvas, options) => {
               return Promise.all(jobs).then(done, done)
           })()
     let nextDraw = 0
+    let heavy = 0 // gate frames in a row whose draw kept the main thread longer than STILL_MS
+    let frozen = false // the gate stopped drawing (see the loop); the click starts it again
     const loop = (t: number) => {
         raf = 0
         if (!running) return
@@ -1602,7 +1612,23 @@ const mount: Mount<Options> = (canvas, options) => {
                 }
             } else if (bench.frames > TUNING.warmup + 2) paced(gap)
         }
+        const t0 = performance.now()
         if (!drawn) render()
+        // A GL drawn on the CPU (SwiftShader, llvmpipe: a machine with no GPU driver, a speed test's
+        // headless Chrome on a small runner) spends the main thread inside its draw calls, waiting for
+        // frames of seconds each: Lighthouse measured 158 s of blocking on GitHub's runner. While the gate
+        // waits, one draw of over BIG_MS, or two in a row over STILL_MS, and it stops where it is: a still
+        // picture until the click (the loader then plays as always, slowly if it must). A real GPU's draw
+        // calls return at once, so this never touches one; slow GPUs are what the tiers are for
+        if (gated && !entering && forced < 0) {
+            const cost = performance.now() - t0
+            heavy = cost > STILL_MS ? heavy + 1 : 0
+            if (cost > BIG_MS || heavy >= 2) {
+                frozen = true
+                canvas.dataset.still = ""
+                return
+            }
+        }
         raf = requestAnimationFrame(loop)
     }
 
