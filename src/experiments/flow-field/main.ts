@@ -488,6 +488,7 @@ const MIN_QUALITY = 0.5 // lowest share of the device pixel ratio (tier 3)
 // A high refresh rate is no reason to draw this flat out: the GPU would have nothing left, and a
 // saturated GPU is what makes the page and the cursor pill lag
 const MAX_FRAME = 1000 / 60 // ms; at most this often
+const SLOW_GAP = 300 // ms between two gate frames: slower than this twice running and the gate stands still
 const STILL_MS = 60 // ms of the main thread in one draw of the gate: twice in a row and the gate stands still
 const BIG_MS = 400 // ...or once, if it is this long
 const GATE_FRAME = 1000 / 30 // ms; while the gate waits: faint and slow, it doesn't show
@@ -1554,6 +1555,8 @@ const mount: Mount<Options> = (canvas, options) => {
               return Promise.all(jobs).then(done, done)
           })()
     let nextDraw = 0
+    let lateFrames = 0 // gate frames in a row that came more than SLOW_GAP after the one before
+    let last0 = false // a frame has been drawn since the loop (re)started
     let heavy = 0 // gate frames in a row whose draw kept the main thread longer than STILL_MS
     let frozen = false // the gate stopped drawing (see the loop); the click starts it again
     const loop = (t: number) => {
@@ -1575,6 +1578,20 @@ const mount: Mount<Options> = (canvas, options) => {
         const gap = last ? t - last : 16
         const dt = Math.min(gap, 100)
         last = t
+        // The gate's frames coming a third of a second apart or worse, twice running: the GL is drawn on the
+        // CPU (a speed test's runner, a machine with no GPU driver) and its work is starving the page itself
+        // (CI measured a frame every 1.3 s and 158 s of blocking: the draw calls return at once, the page's
+        // own scrolling and layout then wait on the saturated machine). The gate stops where it is, a still
+        // picture, until the click; the loader then plays as always. Nothing with a GPU gets near this
+        if (gated && !entering && forced < 0 && last0) {
+            lateFrames = gap > SLOW_GAP ? lateFrames + 1 : 0
+            if (lateFrames >= 2) {
+                frozen = true
+                canvas.dataset.still = ""
+                return
+            }
+        }
+        last0 = true
         if (!scrubbing) {
             time += dt / 1000
             if (!still) turbTime += (dt / 1000) * c.turbSpeed * burst() * (gated || entering ? c.gateSpeed : 1)
@@ -2112,6 +2129,8 @@ const mount: Mount<Options> = (canvas, options) => {
             sound.resume()
             running = true
             last = 0
+            last0 = false
+            lateFrames = 0
             raf = requestAnimationFrame(loop)
         },
         stop() {
