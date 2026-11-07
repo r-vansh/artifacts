@@ -42,6 +42,13 @@
     --line: var(--gray-200);
 }
 
+/* On a phone (Figma 3291:18544, 402 wide) the vertical guides sit a flat 16px in */
+@media (max-width: 599px) {
+    :root {
+        --edge: 16px;
+    }
+}
+
 /* Dark mode (the switch: src/components/Cord.astro): the same tokens, the ramps turned over, so
    every rule that uses them follows. Gray/500 is the middle of the ramp and stays put; --primary
    and its tints do not change. Set before the first paint by Base.astro's head script */

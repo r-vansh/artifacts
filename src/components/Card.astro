@@ -52,14 +52,16 @@ const external = d.kind === "external"
        only for the number of columns the grid has at this width */
     .cross {
         --n: 5;
+        --cs: 38px; /* its size */
+        --ct: 20px; /* the next poster's title row, which the centre allows for */
         display: none;
         position: absolute;
-        left: calc(100% + (100cqw - var(--n) * 100%) / (2 * (var(--n) - 1)) - 19px);
-        top: calc(100% + (var(--row-gap) + 20px) / 2 - 19px);
-        width: 38px;
-        height: 38px;
+        left: calc(100% + (100cqw - var(--n) * 100%) / (2 * (var(--n) - 1)) - var(--cs) / 2);
+        top: calc(100% + (var(--row-gap) + var(--ct)) / 2 - var(--cs) / 2);
+        width: var(--cs);
+        height: var(--cs);
         background: var(--gray-200);
-        mask: url("/crosshair.svg") no-repeat center / 38px 38px;
+        mask: url("/crosshair.svg") no-repeat center / var(--cs) var(--cs);
         pointer-events: none;
     }
     .cross.n5 {
@@ -89,6 +91,8 @@ const external = d.kind === "external"
         }
         .cross.n2 {
             --n: 2;
+            --cs: 24px;
+            --ct: 0px; /* on a phone the frame centres it between the two cards */
             display: block;
         }
     }
@@ -111,6 +115,11 @@ const external = d.kind === "external"
            8px under the row, then half the poster) */
         transform: var(--t, none);
         transform-origin: 50% calc(100% + 8px + var(--w, 0px) / 2);
+    }
+    @media (max-width: 599px) {
+        .meta {
+            font-size: 11px;
+        }
     }
     .title {
         min-width: 0;

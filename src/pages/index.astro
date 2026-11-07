@@ -84,6 +84,29 @@ const items = await getEntries()
         text-align: justify;
         color: var(--gray-700);
     }
+    /* A phone (Figma 3291:18544): 123px under the logo header and 120px below, the box 32px in from
+       the window's edge and stacked and centred: the heading at 24px over the line at 14px */
+    @media (max-width: 599px) {
+        .intro {
+            padding-top: 30.6vw;
+            margin-bottom: 29.85vw;
+        }
+        .box {
+            flex-direction: column;
+            flex-wrap: nowrap;
+            gap: 24px;
+            width: calc(100% - 32px);
+            padding: 24px 16px;
+        }
+        h1 {
+            font-size: 24px;
+        }
+        p {
+            width: 228px;
+            font-size: 14px;
+            text-align: center;
+        }
+    }
     /* Dark (Figma 3273:17727): Gray/500, not the turned-over Gray/700 */
     :global(html[data-theme="dark"]) p {
         color: var(--gray-500);

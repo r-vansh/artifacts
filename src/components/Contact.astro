@@ -47,6 +47,7 @@ const RESUME = "https://drive.google.com/file/d/1ToBkoytEI-dncMYj2WT-1YDqcAKHq-I
             </ul>
         </div>
     </div>
+    <hr class="rule end" />
 </section>
 
 <script>
@@ -272,6 +273,49 @@ const RESUME = "https://drive.google.com/file/d/1ToBkoytEI-dncMYj2WT-1YDqcAKHq-I
     .socials a:focus-visible + .tip {
         opacity: 1;
         transform: translate(-50%, 0);
+    }
+    .end {
+        display: none;
+    }
+    /* A phone (Figma 3291:18544): 120px under the grid, the headline at 28px, the button 34px tall
+       at 14px, then the address (24px, its copy icon 24px) and the five 40px icons under it, left
+       aligned, with a rule under them */
+    @media (max-width: 599px) {
+        .contact {
+            margin-top: min(29.85vw, 160px);
+        }
+        h2 {
+            font-size: 28px;
+        }
+        .resume {
+            margin-top: 24px;
+            height: 34px;
+            padding: 0 16px;
+            font-size: 14px;
+        }
+        .row {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 24px;
+            margin-top: 48px;
+        }
+        .email {
+            font-size: 24px;
+        }
+        .copy {
+            width: 1em;
+            height: 1em;
+        }
+        .socials {
+            flex-wrap: nowrap;
+            gap: 16px;
+        }
+        .socials img {
+            width: 40px;
+        }
+        .end {
+            display: block;
+        }
     }
     /* On a phone the last tag would hang off the window: it sits flush right instead */
     @media (max-width: 600px) {

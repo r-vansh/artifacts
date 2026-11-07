@@ -58,6 +58,12 @@
         transform: scale(var(--size));
         transform-origin: 0 0;
     }
+    /* A phone: 62px in from the right edge (Figma 3291:18544, x 340 of 402) */
+    @media (max-width: 599px) {
+        .hang {
+            left: calc(100% - 62px);
+        }
+    }
     .rope {
         position: absolute;
         top: 0;

@@ -89,6 +89,13 @@ import dark from "../assets/footer/garden-dark.png"
         height: clamp(150px, 22.43vw, 323px);
         margin-top: clamp(12px, 1.6vw, 23px);
     }
+    /* A phone: it starts at the rule under the icons (Figma 3291:18544) */
+    @media (max-width: 599px) {
+        .garden {
+            margin-top: 0;
+            height: clamp(180px, 54vw, 280px);
+        }
+    }
     .still {
         position: absolute;
         inset: 0;

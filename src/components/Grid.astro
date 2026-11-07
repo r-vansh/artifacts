@@ -132,9 +132,12 @@ const crosses = (i: number) => COLUMNS.filter((n) => i % n < n - 1 && i + n + 1 
             grid-template-columns: repeat(3, minmax(0, 1fr));
         }
     }
+    /* A phone (Figma 3291:18544): two posters a third of the row wide each, the rest between them
+       (125px and 120px at 402 wide), and 120px between the rows */
     @media (max-width: 599px) {
         .grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: repeat(2, minmax(0, 33.78%));
+            --row-gap: min(29.85vw, 160px);
         }
     }
 </style>
