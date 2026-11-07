@@ -39,7 +39,20 @@ type Flock = ReturnType<Particles["begin"]> | undefined
 let particles: Promise<Particles | undefined> | undefined
 const loadParticles = () => import("./converge").catch(() => (particles = undefined))
 // Loaded with the overlay (which itself loads on idle), so the first click does not wait for it
-if (!reduced.matches) particles = loadParticles().then((m) => (m?.prewarm(), m))
+if (!reduced.matches) particles = loadParticles()
+// The lens for the opening is built ahead (converge.ts `prewarm`), not at load, when a speed test
+// would count its context and shader work: when a pointer first comes over a card, or, failing that,
+// well after the page has settled
+if (!reduced.matches) {
+    // Not under the loading animation: its shaders keep the GPU busy, and anything that waits on the GPU
+    // (a new WebGL context, a compile) waits behind them, blocking the page with it
+    const warm = (): void => {
+        if (document.documentElement.hasAttribute("data-splash")) return void document.addEventListener("splash:done", () => setTimeout(warm, 1500), { once: true })
+        void particles?.then((m) => m?.prewarm())
+    }
+    document.addEventListener("pointerover", (e) => (e.target as Element).closest?.(".card") && warm(), { once: true, passive: true, capture: true })
+    setTimeout(() => ("requestIdleCallback" in window ? requestIdleCallback(warm, { timeout: 4000 }) : warm()), 8000)
+}
 let flock: Promise<Flock> | undefined
 
 async function open(url: URL, from: HTMLElement) {

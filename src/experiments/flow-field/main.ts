@@ -1527,10 +1527,32 @@ const mount: Mount<Options> = (canvas, options) => {
         }
     }
 
+    // The shaders compile in the background first (the browser's parallel compile, where it has one): a
+    // first draw compiles them on the spot and waits for the driver, which on a slow or CPU-drawn GL
+    // was one task of ten seconds in the middle of the page's load (Lighthouse: blocking time 9.6 s).
+    // The loop waits for them, then draws as always; if they cannot be compiled ahead it does not wait
+    let compiled = typeof renderer.compileAsync !== "function"
+    const done = () => void ((compiled = true), (canvas.dataset.compiled = String(Math.round(performance.now()))))
+    const compileDone: Promise<void> = compiled
+        ? Promise.resolve()
+        : (() => {
+              // Each scene for the target it is drawn to (a program is made per target: compiled for the
+              // screen alone, the first draw to a texture compiled them all again, on the spot)
+              const jobs = ([[fieldScene, target], [flowScene, flowTarget], [marksScene, null], [marksScene, scene], [turbScene, null]] as const).map(([sc, to]) => {
+                  renderer.setRenderTarget(to)
+                  return renderer.compileAsync(sc, screenCamera)
+              })
+              renderer.setRenderTarget(null)
+              return Promise.all(jobs).then(done, done)
+          })()
     let nextDraw = 0
     const loop = (t: number) => {
         raf = 0
         if (!running) return
+        if (!compiled) {
+            raf = requestAnimationFrame(loop)
+            return
+        }
         // Not this one: the next one the screen offers
         // (the benchmark without a GPU timer has the gate draw at the tier's own pace for a moment)
         const pacing = bench.on && !timer && gated && !entering && bench.frames >= TUNING.warmup
@@ -2029,7 +2051,10 @@ const mount: Mount<Options> = (canvas, options) => {
     resize()
     if (c.gateOn) showGate()
     else playIntro()
-    render()
+    // The first picture waits for the shaders (compiled in the background, see `compiled`): drawn here
+    // it would compile them all on the spot, inside the module's evaluation
+    if (compiled) render()
+    else compileDone.then(() => !stopped && render())
 
     // On a phone the address bar sliding in or out resizes the window several times in a row,
     // and each resize makes every target again: wait for it to settle (the canvas is stretched

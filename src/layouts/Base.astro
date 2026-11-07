@@ -130,6 +130,28 @@ const canonical = new URL(Astro.url.pathname, Astro.site)
         background: var(--white);
         transition: opacity var(--lift, 0.7s) ease-out;
     }
+    /* Until the canvas has its shaders (a first visit can take seconds of that) the veil is not a blank
+       page: a faint cloud of the form fades in from the first paint, in CSS alone. The canvas, which
+       paints its own paper, covers it when it fades in. (A page that shows nothing and then nothing
+       more gives a speed test no visual progress to measure: Lighthouse reports no score at all) */
+    .splash::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+            radial-gradient(ellipse 38% 30% at 50% 46%, color-mix(in srgb, var(--gray-900) 11%, transparent), transparent 70%),
+            radial-gradient(ellipse 22% 18% at 58% 52%, color-mix(in srgb, var(--gray-900) 7%, transparent), transparent 70%);
+        pointer-events: none;
+        animation: splash-cloud 1.6s ease-out both;
+    }
+    .splash[data-live]::after {
+        display: none;
+    }
+    @keyframes splash-cloud {
+        from {
+            opacity: 0;
+        }
+    }
     .splash[data-lift] {
         pointer-events: none;
     }
@@ -137,6 +159,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site)
         opacity: 0;
     }
     .splash :global(canvas) {
+        z-index: 1;
         position: absolute;
         inset: 0;
         width: 100%;

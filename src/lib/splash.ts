@@ -29,6 +29,7 @@ const veil = document.querySelector<HTMLElement>(".splash")
 const canvas = document.createElement("canvas")
 let exp: ReturnType<typeof mount> | undefined
 let over = false
+let started = false
 
 const APPEAR = 2 // s: the faint form fades in on load instead of appearing at once
 const FADE = 0.9 // s: the sound fades out once the loader is gone, instead of cutting off
@@ -84,7 +85,7 @@ else {
         document.addEventListener("visibilitychange", hide)
 
         // The first click or Enter/Space is the gate; from there the clock runs
-        let started = false
+        started = false
         const start = (e: Event) => {
             if (started) return
             // Space would scroll the page under the veil

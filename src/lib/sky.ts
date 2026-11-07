@@ -11,10 +11,10 @@ export const params = {
     // Both
     height: 0.5, // the sky's height in window heights (it fades out over the lower half), at most 720 px
     // Night
-    density: 10000, // px² of sky per star (more is fewer)
-    size: 1.2, // star size in CSS px (they are small squares)
-    glow: 0.65, // overall brightness, 0 to 1
-    twinkle: 0.5, // how much the stars breathe, 0 to 1
+    density: 8500, // px² of sky per star (more is fewer)
+    size: 1.4, // star size in CSS px (they are small squares)
+    glow: 0.7, // overall brightness, 0 to 1
+    twinkle: 0.75, // how much the stars breathe, 0 to 1
     first: 4, // s until the first shower once it is on screen, then
     gap: 10, // s between showers (at least; up to twice this)
     meteors: 4, // at most this many in a shower
@@ -22,15 +22,15 @@ export const params = {
     speed: 800, // px/s
     tail: 150, // px
     // Day
-    clouds: 4, // how many are about
+    clouds: 6, // how many are about
     drift: 15, // px/s, how fast they cross (on average)
     driftVary: 0.2, // how much their speeds differ, 0 (all the same) to 1
     driftSize: 0.4, // how much slower the big ones are, 0 to 1 (far things move slowly)
     cloudMin: 60, // px, the smallest cloud's width
     cloudMax: 290, // px, the biggest
     cloudSkew: 1.6, // how many are small: 1 even, higher is more small ones and fewer big
-    cloudGlow: 0.5, // how visible, 0 to 1
-    birdGlow: 0.45, // how visible the birds are, 0 to 1
+    cloudGlow: 0.55, // how visible, 0 to 1
+    birdGlow: 0.55, // how visible the birds are, 0 to 1
     birdFirst: 4, // s until the first bird once it is on screen, then
     birdGap: 12, // s between birds (at least; up to twice this)
     birdSpeed: 70, // px/s

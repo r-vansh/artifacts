@@ -154,8 +154,13 @@ label()
 // (the light page has its sky too, clouds and birds: loaded when the page is idle; under `npm run dev`
 // at once, so its tuning panel is there)
 if (chosen || import.meta.env.DEV) loadSky()
-else if ("requestIdleCallback" in window) requestIdleCallback(loadSky, { timeout: 3000 })
-else setTimeout(loadSky, 1500)
+else {
+    // Well after the page has loaded (it laid out its clouds in one go, over a second on a slow phone, inside
+    // the window Lighthouse counts as blocking); it fades in by itself, so a late start is not noticed
+    const later = () => setTimeout(() => ("requestIdleCallback" in window ? requestIdleCallback(loadSky, { timeout: 2000 }) : loadSky()), 3500)
+    if (document.readyState === "complete") later()
+    else addEventListener("load", later, { once: true })
+}
 pull?.addEventListener("focus", prime)
 pull?.addEventListener("click", (e) => {
     if (!cordWorks || !e.detail) toggle()
