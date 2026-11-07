@@ -95,9 +95,22 @@ const steps = pages.length > 1 ? { prev: pages[(at - 1 + pages.length) % pages.l
                         )
                     }
                 </div>
+                {
+                    steps && (
+                        <nav class="steps" aria-label="Posts">
+                            <a class="chip step" href={`/${steps.prev}`} data-step="prev" aria-label="Previous post">
+                                <i class="icon prev" />
+                            </a>
+                            <a class="chip step" href={`/${steps.next}`} data-step="next" aria-label="Next post">
+                                <i class="icon next" />
+                            </a>
+                        </nav>
+                    )
+                }
             </div>
             <i class="band top" aria-hidden="true"></i>
             <i class="band bottom" aria-hidden="true"></i>
+            <b class="mini" aria-hidden="true">{d.title}</b>
         </article>
     </main>
 </Base>
@@ -114,8 +127,6 @@ const steps = pages.length > 1 ? { prev: pages[(at - 1 + pages.length) % pages.l
     .post {
         --frame: 40px;
         --paper: var(--white);
-        --dash: repeating-linear-gradient(to right, var(--line) 0 4px, transparent 4px 8px);
-        --dash-v: repeating-linear-gradient(to bottom, var(--line) 0 4px, transparent 4px 8px);
         position: relative;
         box-sizing: border-box;
         width: min(1280px, 100%, 90vh * 1.6);
@@ -126,16 +137,35 @@ const steps = pages.length > 1 ? { prev: pages[(at - 1 + pages.length) % pages.l
         transition:
             border-color 0.7s cubic-bezier(0.16, 1, 0.3, 1),
             box-shadow 0.7s cubic-bezier(0.16, 1, 0.3, 1);
-        /* The dashed guides, edge to edge, 40px in from each side (under the content) */
-        background:
-            var(--dash) 0 var(--frame) / 100% 1px no-repeat,
-            /* The bottom guide is the frame's last row, so the bottom band, which starts just
-               under the frame, never covers it; the right guide is just outside the frame's
-               last column, so the media column (which fills that column) never covers it */
-            var(--dash) 0 calc(100% - var(--frame)) / 100% 1px no-repeat,
-            var(--dash-v) var(--frame) 0 / 1px 100% no-repeat,
-            var(--dash-v) calc(100% - var(--frame) + 1px) 0 / 1px 100% no-repeat,
-            var(--paper);
+        background: var(--paper);
+        /* The pseudo-elements' guides go under the content (z-index -1) and over this background */
+        isolation: isolate;
+    }
+    /* The dashed guides, edge to edge, 40px in from each side: real 1px dashed borders, so they
+       are exactly the page's own lines (Chrome's dashes, fitted to the length; the same --line).
+       The bottom guide is the frame's last row, so the bottom band, which starts just under the
+       frame, never covers it; the right guide is just outside the frame's last column, so the media
+       column (which fills that column) never covers it */
+    .post::before,
+    .post::after {
+        content: "";
+        position: absolute;
+        z-index: -1;
+        pointer-events: none;
+    }
+    .post::before {
+        left: 0;
+        right: 0;
+        top: var(--frame);
+        bottom: calc(var(--frame) - 1px);
+        border-block: 1px dashed var(--line);
+    }
+    .post::after {
+        top: 0;
+        bottom: 0;
+        left: var(--frame);
+        right: calc(var(--frame) - 2px);
+        border-inline: 1px dashed var(--line);
     }
     /* Dark (Figma 3274:18283): the card is Gray/Main of the light page (Gray/50 here, not the
        turned-over white, which is black), with a deeper shadow, the title Gray/900, the summary
@@ -200,6 +230,20 @@ const steps = pages.length > 1 ? { prev: pages[(at - 1 + pages.length) % pages.l
     }
     .chip.step {
         padding: 4px;
+    }
+    /* The chevrons at the end of the post: a phone only (it has them at the top on a desktop) */
+    .steps {
+        display: none;
+    }
+    /* The title as it is once the card has scrolled, in the top strip (a phone only, below) */
+    .mini {
+        display: none;
+        font-weight: 400;
+        letter-spacing: -0.03em;
+        color: var(--gray-main);
+    }
+    :global(html[data-theme="dark"]) .mini {
+        color: var(--gray-900);
     }
     .icon.redirect {
         --src: url("/icons/redirect.svg");
@@ -342,8 +386,11 @@ const steps = pages.length > 1 ? { prev: pages[(at - 1 + pages.length) % pages.l
     .band.top {
         top: 0;
     }
+    /* One pixel short of the margin: the bottom guide is the frame's last row, and a band over it
+       (frosted at 85%) hid it everywhere between the side guides */
     .band.bottom {
         bottom: 0;
+        height: calc(var(--frame) - 1px);
     }
     .media::-webkit-scrollbar {
         display: none;
@@ -415,4 +462,237 @@ const steps = pages.length > 1 ? { prev: pages[(at - 1 + pages.length) % pages.l
             display: none;
         }
     }
+    /* A phone, and a tablet held upright (up to 899px; Figma 3291:18896, 402 wide): the card is 370 x 640 (the frame has 720; Vansh, 2026-11-07)
+       with the guides 23px in, and what is in it scrolls as one: nothing is stuck to the top. The
+       title, summary, the row of tags and chips (open, github) and the media pass under the same
+       frosted bands as on a desktop (the 23px margins at the top and bottom). The title does not
+       scroll away: as you scroll it shrinks and moves up into the top band, between the expand and
+       close corners (src/pages/[slug].astro's script sets --p, 0 at rest to 1). The previous / next
+       chevrons are at the end of the post. The corners are 20px with the 12px glyph centred in
+       them; the first media block is 322 x 385, the gallery under it, 24px apart */
+    @media (max-width: 899px) {
+        .post {
+            height: min(720px, 90dvh);
+            max-height: none;
+            overflow: hidden;
+        }
+        :global(.overlay.full) .post {
+            height: 100dvh;
+        }
+        /* Both side guides are right against the content's edges, one pixel outside them */
+        .post::after {
+            left: calc(var(--frame) - 1px);
+            right: calc(var(--frame) - 1px);
+        }
+        .band {
+            left: var(--frame);
+        }
+        /* The scroller: the whole card, padded by the frame so that at rest it starts on the
+           guides, and what scrolls passes under the bands. Its lines are one flex container */
+        .inner,
+        :global(.overlay.full) .inner {
+            position: absolute;
+            inset: 0;
+            margin: 0;
+            /* No padding above or below: browsers differ on whether a sticky offset counts from
+               inside it, so the top and bottom margins are the first and last lines' own */
+            padding: 0 var(--frame);
+            display: flex;
+            flex-wrap: wrap;
+            align-content: flex-start;
+            align-items: center;
+            gap: 16px 12px;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            scrollbar-width: none;
+        }
+        .inner::-webkit-scrollbar {
+            display: none;
+        }
+        /* The room under the last line (the row gap adds to it) */
+        .inner::after {
+            content: "";
+            flex: 0 0 100%;
+            height: calc(var(--frame) - 16px);
+        }
+        /* The text blocks and the chips are the scroller's own lines */
+        .info,
+        .title {
+            display: contents;
+        }
+        h1 {
+            flex: 0 0 100%;
+            margin-top: var(--frame);
+            /* Gives way to the title in the strip as the card scrolls (--p, on the card, 0 to 1) */
+            opacity: calc(1 - min(1, var(--p, 0) * 4));
+        }
+        /* The title in the strip, not part of what scrolls (so dragging the content, even past its
+           end, cannot take it along): it starts exactly over the title and, as --p goes from 0 to 1,
+           shrinks to 60% and moves up to the middle of the top strip, between the corners */
+        .mini {
+            display: block;
+            position: absolute;
+            z-index: 3;
+            left: var(--frame);
+            top: var(--frame);
+            max-width: calc(100% - 2 * var(--frame));
+            font-size: 24px;
+            line-height: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            pointer-events: none;
+            opacity: min(1, calc(var(--p, 0) * 4));
+            transform-origin: 50% 50%;
+            transform: translate(calc(var(--dx, 0px) * var(--p, 0)), calc(var(--dy, 0px) * var(--p, 0))) scale(calc(1 - 0.4 * var(--p, 0)));
+        }
+        .summary {
+            flex: 0 0 100%;
+        }
+        .tags {
+            flex: 1 1 0;
+            min-width: 0;
+            padding-top: 12px;
+        }
+        .links {
+            flex: none;
+            flex-wrap: nowrap;
+            margin: 0;
+            padding-top: 12px;
+        }
+        /* The chevrons last in the row: open, github, previous, next */
+        .links .chip.step {
+            order: 1;
+        }
+        .media {
+            flex: 0 0 100%;
+            margin: 8px 0 0;
+            padding: 0;
+            overflow: visible;
+        }
+        .media :global(.stage),
+        .media > :global(img:first-child),
+        .media > .fill:first-child {
+            aspect-ratio: 11 / 7;
+        }
+        /* A post that scrolls has them again at its end (the script below sets data-scrolls) */
+        .steps {
+            flex: 0 0 100%;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 12px;
+        }
+        .post[data-scrolls] .steps {
+            display: flex;
+        }
+        /* The frosted bands over the top and bottom margins, as on a desktop */
+        .band {
+            display: block;
+        }
+    }
+    /* A phone (Figma 3291:18896, 402 wide): the card is 370 x 640 (the frame has 720; Vansh,
+       2026-11-07) with the guides 23px in, its own type sizes and spacing, and the first media block
+       322 x 385. The scrolling itself (above) is shared with a tablet held upright, which keeps the
+       desktop's spacing */
+    @media (max-width: 599px) {
+        .post {
+            --frame: 23px;
+            height: min(640px, calc(100dvh - 96px));
+        }
+        .inner,
+        :global(.overlay.full) .inner {
+            gap: 12px 8px;
+        }
+        .inner::after {
+            height: calc(var(--frame) - 12px);
+        }
+        .corner {
+            top: 1px;
+            width: 20px;
+            height: 20px;
+        }
+        .corner .icon {
+            width: 12px;
+            height: 12px;
+        }
+        .expand {
+            left: 1px;
+        }
+        .back {
+            right: 1px;
+        }
+        h1,
+        .mini {
+            font-size: 20px;
+        }
+        .summary {
+            font-size: 12px;
+            line-height: 1;
+        }
+        .tags {
+            font-size: 11px;
+        }
+        .chip {
+            font-size: 12px;
+        }
+        .icon.prev,
+        .icon.next {
+            width: 12px;
+            height: 12px;
+        }
+        .media {
+            margin-top: 12px;
+        }
+        .media :global(.stage),
+        .media > :global(img:first-child),
+        .media > .fill:first-child {
+            aspect-ratio: 322 / 385;
+        }
+    }
 </style>
+
+<script>
+    // On a phone the title shrinks and moves up into the strip at the top of the card as the card
+    // scrolls (see the phone rules above): this keeps --p (0 at rest to 1 after about 56px) on the
+    // card, and --dx and --dy (how far the title in the strip, which starts over the real one, has
+    // to go to sit in the middle of the strip). It also marks a card that scrolls (data-scrolls on
+    // the card, which shows the chevrons at the end too). Bound to every card there is, again
+    // after a switch
+    const phone = matchMedia("(max-width: 899px)")
+    function bind(inner: HTMLElement) {
+        if (inner.dataset.collapse !== undefined) return
+        inner.dataset.collapse = ""
+        const post = inner.closest<HTMLElement>(".post")
+        const media = inner.querySelector<HTMLElement>(".media")
+        const mini = post?.querySelector<HTMLElement>(".mini")
+        if (!post || !mini) return
+        const measure = () => {
+            const frame = parseFloat(getComputedStyle(post).getPropertyValue("--frame")) || 23
+            // From its place over the title (the frame in from the left and the top) to the middle
+            // of the card, in the middle of the strip above the top guide
+            post.style.setProperty("--dx", `${inner.clientWidth / 2 - (frame + mini.offsetWidth / 2)}px`)
+            post.style.setProperty("--dy", `${frame / 2 - (frame + mini.offsetHeight / 2)}px`)
+        }
+        const update = () => post.style.setProperty("--p", phone.matches ? String(Math.min(1, Math.max(0, inner.scrollTop / 56))) : "0")
+        // Taller than the card without the chevrons at the end (or they would make it so)
+        const scrolls = () => {
+            const frame = parseFloat(getComputedStyle(post).getPropertyValue("--frame")) || 23
+            post.toggleAttribute("data-scrolls", !!media && phone.matches && media.offsetTop + media.offsetHeight + frame > inner.clientHeight + 1)
+        }
+        inner.addEventListener("scroll", update, { passive: true })
+        const watch = new ResizeObserver(() => {
+            measure()
+            update()
+            scrolls()
+        })
+        watch.observe(inner)
+        if (media) watch.observe(media)
+        measure()
+        update()
+        scrolls()
+    }
+    const init = () => document.querySelectorAll<HTMLElement>(".post .inner").forEach(bind)
+    init()
+    document.addEventListener("overlay:open", init)
+    document.addEventListener("nav:enter", init)
+</script>

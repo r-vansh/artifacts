@@ -34,6 +34,7 @@ type Dot = {
     c0: RGB // colour at the start and the end
     c1: RGB
     img: boolean // its spot is in the first image (it fades first, into the image)
+    css?: string // its end colour as a string, made once
 }
 
 // The morph's settings, live: the dev-only Morph panel (morph-tune.ts) changes them
@@ -195,8 +196,30 @@ function posterSpots(from: HTMLElement, n: number) {
     })
 }
 
-const count = () => Math.round(Math.min(2400, Math.max(900, (innerWidth * innerHeight) / params.density)))
+// A touch screen (an iPad, a phone) gets a lighter morph: its canvases (the particles', the
+// lens's and the stand-in picture) at most 1.5 device px per px, at most 1400 particles. A mouse
+// keeps 2 and 2400
+const coarse = matchMedia("(pointer: coarse)").matches
+const ratio = () => Math.min(coarse ? 1.5 : 2, devicePixelRatio || 1)
+const count = () => Math.round(Math.min(coarse ? 1400 : 2400, Math.max(900, (innerWidth * innerHeight) / params.density)))
 const between = (a: Box, b: Box, k: number): Box => ({ x: mix(a.x, b.x, k), y: mix(a.y, b.y, k), w: mix(a.w, b.w, k), h: mix(a.h, b.h, k) })
+
+// A 1px dashed line as Chrome draws a thin dashed border (3 on, about 2 off, the gap fitted to the
+// length), so the stand-in's guides are the page's own (and the real card's, [slug].astro)
+function dashed(g: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number) {
+    const len = Math.hypot(x1 - x0, y1 - y0)
+    const few = Math.floor((len + 2) / 5)
+    const lo = (len - few * 3) / Math.max(1, few - 1)
+    const hi = (len - (few + 1) * 3) / Math.max(1, few)
+    g.save()
+    g.lineWidth = 1
+    g.setLineDash([3, hi <= 0 || Math.abs(lo - 2) < Math.abs(hi - 2) ? lo : hi])
+    g.beginPath()
+    g.moveTo(x0, y0)
+    g.lineTo(x1, y1)
+    g.stroke()
+    g.restore()
+}
 
 // The bulge (opening only; Vansh, 2026-11-05, "you can use shaders or WebGL"): the card is a
 // web page, which WebGL cannot draw, so while it bulges a stand-in is drawn instead: a picture
@@ -232,7 +255,7 @@ function wordsIn(els: Iterable<HTMLElement>) {
 // measured once, here, while the card is laid out untouched; `paint()` draws from those
 // measurements (again when the first image arrives, mid-morph, when the card is scaled)
 function snapshot(post: HTMLElement, box: Box) {
-    const dpr = Math.min(2, devicePixelRatio || 1)
+    const dpr = ratio()
     const c = document.createElement("canvas")
     c.width = Math.max(1, Math.round(box.w * dpr))
     c.height = Math.max(1, Math.round(box.h * dpr))
@@ -262,12 +285,8 @@ function snapshot(post: HTMLElement, box: Box) {
         g.strokeRect(0.5, 0.5, box.w - 1, box.h - 1)
         // The dashed guides, 40px in
         g.strokeStyle = guide
-        g.setLineDash([4, 4])
-        g.beginPath()
-        for (const y of [FRAME + 0.5, box.h - FRAME - 0.5]) (g.moveTo(0, y), g.lineTo(box.w, y))
-        for (const x of [FRAME + 0.5, box.w - FRAME + 0.5]) (g.moveTo(x, 0), g.lineTo(x, box.h))
-        g.stroke()
-        g.setLineDash([])
+        for (const y of [FRAME + 0.5, box.h - FRAME - 0.5]) dashed(g, 0, y, box.w, y)
+        for (const x of [FRAME + 0.5, box.w - FRAME + 0.5]) dashed(g, x, 0, x, box.h)
         for (const { r, img, fill } of blocks) {
             const top = Math.max(r.y, FRAME)
             const bottom = Math.min(r.y + r.h, box.h - FRAME)
@@ -306,11 +325,11 @@ function snapshot(post: HTMLElement, box: Box) {
 
 // The lens: a quad over the card's box (grown by the bulge, so the bowed edges show), the
 // stand-in as its texture
-function lens() {
+function buildLens() {
     const canvas = document.createElement("canvas")
     const gl = canvas.getContext("webgl2", { premultipliedAlpha: true, alpha: true, antialias: false })
     if (!gl) return null
-    const dpr = Math.min(2, devicePixelRatio || 1)
+    const dpr = ratio()
     canvas.width = innerWidth * dpr
     canvas.height = innerHeight * dpr
     canvas.setAttribute("aria-hidden", "true")
@@ -374,6 +393,20 @@ void main() {
     gl.uniform2f(u("view"), innerWidth, innerHeight)
     return {
         canvas,
+        /** The window may have changed size since it was built ahead */
+        fit() {
+            const dpr = ratio()
+            const w = Math.round(innerWidth * dpr)
+            const h = Math.round(innerHeight * dpr)
+            if (canvas.width !== w || canvas.height !== h) {
+                canvas.width = w
+                canvas.height = h
+            }
+            canvas.style.width = `${innerWidth}px`
+            canvas.style.height = `${innerHeight}px`
+            gl.useProgram(prog)
+            gl.uniform2f(u("view"), innerWidth, innerHeight)
+        },
         /** The stand-in (again, once its image has loaded) */
         picture(src: HTMLCanvasElement) {
             gl.bindTexture(gl.TEXTURE_2D, tex)
@@ -395,8 +428,42 @@ void main() {
         drop() {
             gl.getExtension("WEBGL_lose_context")?.loseContext()
             canvas.remove()
+            prewarm()
         },
     }
+}
+
+// The first opening used to stall for a good while: a full-window WebGL2 context, two shaders
+// compiled and linked (asking for the link status waits for the driver) and the first draw, all in
+// the frames of the morph. So one lens is built and drawn once ahead, in an idle moment, and the
+// opening takes it (a new one is built after the morph, for the next)
+let spare: ReturnType<typeof buildLens> | undefined
+let warming = 0
+export function prewarm() {
+    if (spare || warming) return
+    const idle = window.requestIdleCallback ?? ((f: () => void) => setTimeout(f, 200))
+    warming = 1
+    idle(
+        () => {
+            warming = 0
+            if (spare || document.querySelector("body > .overlay")) return
+            const l = buildLens()
+            if (!l) return
+            // A first draw, so the driver compiles for real
+            const c = document.createElement("canvas")
+            c.width = c.height = 2
+            l.picture(c)
+            l.draw({ x: 0, y: 0, w: 2, h: 2 }, 0, 0.01, 0)
+            spare = l
+        },
+        { timeout: 2000 },
+    )
+}
+function lens() {
+    const l = spare ?? buildLens()
+    spare = undefined
+    l?.fit()
+    return l
 }
 
 // The card drawn at a box between the poster's and its own: moved and scaled there (its
@@ -420,7 +487,7 @@ function swarm(dots: Dot[], step: (t: number) => boolean | void, alpha: (d: Dot,
     const canvas = document.createElement("canvas")
     canvas.setAttribute("aria-hidden", "true")
     canvas.style.cssText = `position:fixed;inset:0;z-index:51;pointer-events:none;width:${innerWidth}px;height:${innerHeight}px`
-    const dpr = Math.min(2, devicePixelRatio || 1)
+    const dpr = ratio()
     canvas.width = innerWidth * dpr
     canvas.height = innerHeight * dpr
     const ctx = canvas.getContext("2d")!
@@ -460,7 +527,10 @@ function swarm(dots: Dot[], step: (t: number) => boolean | void, alpha: (d: Dot,
             if (a <= 0.01) continue
             const e = t < 0 ? 0 : ease(clamp((t - d.wait) / params.flight))
             ctx.globalAlpha = a
-            ctx.fillStyle = `rgb(${mix(d.c0[0], d.c1[0], e)},${mix(d.c0[1], d.c1[1], e)},${mix(d.c0[2], d.c1[2], e)})`
+            // A string made for every particle every frame is garbage for the collector (up to 2400
+            // a frame): the end colour, where most sit for the second half, is made once
+            if (e >= 1) ctx.fillStyle = d.css ??= `rgb(${d.c1[0]},${d.c1[1]},${d.c1[2]})`
+            else ctx.fillStyle = `rgb(${mix(d.c0[0], d.c1[0], e) | 0},${mix(d.c0[1], d.c1[1], e) | 0},${mix(d.c0[2], d.c1[2], e) | 0})`
             const z = mix(d.s0, d.s1, e)
             ctx.fillRect(d.x - z / 2, d.y - z / 2, z, z)
         }
@@ -502,6 +572,7 @@ export function begin(from: HTMLElement) {
     let late = false // the post came after the flight was well under way: it fades in, not pops
     let now = 0 // the flight's time at the last frame
     let shown = 0 // how much of the card shows (0..1): the particles fade as it comes in
+    let cover = 0 // how opaque the card's picture (the stand-in, or the card) is over the first image
     let done: (() => void) | undefined
     let first: Box | null = null // the first image on the card (card px), and where it is now (window px)
     let image: Box | null = null
@@ -547,12 +618,16 @@ export function begin(from: HTMLElement) {
                 // to full opacity under it, hidden; only then, the bulge relaxed, does the stand-in
                 // fade away and uncover it
                 const solid = Math.min(smooth(0.02, params.solid, k), ramp)
+                cover = Math.max(solid, Math.min(ramp, smooth(params.handover - 0.15, params.handover - 0.02, k)))
                 const out = smooth(params.handover, Math.min(1, params.handover + 0.15), k)
                 placeCard(card, own, at, Math.min(ramp, smooth(params.handover - 0.15, params.handover - 0.02, k)), k)
                 const flat = clamp(k / params.relax)
                 glass.draw(at, params.bulge * (1 - flat) ** params.curve, solid * (1 - out), Math.max(0, ((3 * params.blur) / 14) * (1 - k) ** 2 - 0.2))
                 over = out >= 1 && ramp >= 1
-            } else placeCard(card, own, at, shown, k)
+            } else {
+                cover = shown
+                placeCard(card, own, at, shown, k)
+            }
             if (first) image = { x: at.x + first.x * (at.w / own.w), y: at.y + first.y * (at.h / own.h), w: first.w * (at.w / own.w), h: first.h * (at.h / own.h) }
             if (over && k >= 1) {
                 freeCard(card)
@@ -566,8 +641,11 @@ export function begin(from: HTMLElement) {
         // is solid
         (d, t) => {
             if (t < 0) return 1
-            const over = d.img || (image && d.x >= image.x && d.x <= image.x + image.w && d.y >= image.y && d.y <= image.y + image.h)
-            return 1 - (over ? smooth(0.1, 0.45, shown) : smooth(0.3, 0.8, shown))
+            const over = d.img || (image && d.x >= image.x - 2 && d.x <= image.x + image.w + 2 && d.y >= image.y - 2 && d.y <= image.y + image.h + 2)
+            // Over the picture, none once it is solid enough to read as the card (a post that came
+            // late used to show particles on it while it ramped in), and they go faster before that
+            if (over && cover > 0.5) return 0
+            return 1 - (over ? smooth(0.0, 0.3, Math.max(shown, cover)) : smooth(0.3, 0.8, shown))
         },
     )
     const shape = estimate(from)
@@ -724,7 +802,18 @@ const inside = (b: Box | null, x: number, y: number) => !!b && x >= b.x && x <= 
 const lum = (c: RGB) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
 
 // The parts of a card that change (the previous / next chips are shell: they stay)
-const partsOf = (post: HTMLElement) => [...post.querySelectorAll<HTMLElement>(".title, .media, .links .chip:not(.step)")]
+// What fades and blurs: the title block, the media and the chips. On a phone the title block has no
+// box of its own (display: contents, so its lines can share a grid with the chips), and opacity and
+// blur do nothing to a boxless element: its lines are faded instead
+const partsOf = (post: HTMLElement) => {
+    const out: HTMLElement[] = []
+    for (const t of post.querySelectorAll<HTMLElement>(".title")) {
+        if (getComputedStyle(t).display === "contents") out.push(...(t.children as HTMLCollectionOf<HTMLElement>))
+        else out.push(t)
+    }
+    out.push(...post.querySelectorAll<HTMLElement>(".media, .links .chip:not(.step), .mini"))
+    return out
+}
 const freeParts = (els: HTMLElement[]) => {
     for (const el of els) el.style.opacity = el.style.filter = el.style.willChange = ""
 }
@@ -741,8 +830,12 @@ function styleParts(els: HTMLElement[], opacity: number, blur: number) {
 function contentOf(post: HTMLElement) {
     const box = boxOf(post.getBoundingClientRect())
     const view = cut(box, { x: 0, y: 0, w: innerWidth, h: innerHeight }) ?? box
-    // Wide, the media scrolls under the bands: what counts is what shows between the guides
-    const frame = innerWidth >= 900 ? (cut(view, { x: box.x, y: box.y + FRAME, w: box.w, h: box.h - 2 * FRAME }) ?? view) : view
+    // The media scrolls under the bands (a desktop, and a phone, where the whole card scrolls inside its
+    // frame): what counts is what shows between the guides. Between 600 and 899px the whole card
+    // scrolls in the window instead: then it is all of the window's part of it
+    const fr = parseFloat(getComputedStyle(post).getPropertyValue("--frame")) || FRAME
+    const whole = false // (nothing under 900px scrolls as a whole card any more: the phone's fixed frame)
+    const frame = whole ? view : (cut(view, { x: box.x, y: box.y + fr, w: box.w, h: box.h - 2 * fr }) ?? view)
     const media = post.querySelector<HTMLElement>(".media")
     const area = media ? cut(boxOf(media.getBoundingClientRect()), frame) : null
     const blocks =

@@ -30,7 +30,7 @@ const sync = (doc: Document) => {
 // What an open post makes inert: the page, not the loader and not the dev panels (the Scroll
 // panel tunes the post's own scrolling)
 const siblings = () =>
-    [...document.body.children].filter((el) => el !== layer && !el.classList.contains("splash") && !el.classList.contains("tune-dock")) as HTMLElement[]
+    [...document.body.children].filter((el) => el !== layer && !el.classList.contains("splash") && !el.classList.contains("tune-dock") && !el.classList.contains("tune-bar")) as HTMLElement[]
 
 // The particles a post opens and closes with (converge.ts, loaded on the first click,
 // alongside the fetch)
@@ -39,12 +39,14 @@ type Flock = ReturnType<Particles["begin"]> | undefined
 let particles: Promise<Particles | undefined> | undefined
 const loadParticles = () => import("./converge").catch(() => (particles = undefined))
 // Loaded with the overlay (which itself loads on idle), so the first click does not wait for it
-if (!reduced.matches) particles = loadParticles()
+if (!reduced.matches) particles = loadParticles().then((m) => (m?.prewarm(), m))
 let flock: Promise<Flock> | undefined
 
 async function open(url: URL, from: HTMLElement) {
     if (layer || busy) return
     busy = true
+    // From the click on, the page's own effects stand still (intro.ts) so the morph has the frame
+    document.dispatchEvent(new Event("overlay:opening"))
     stopAll()
     if (!reduced.matches) particles ??= loadParticles()
     flock = reduced.matches ? undefined : particles?.then((m) => m?.begin(from))
@@ -71,10 +73,16 @@ async function open(url: URL, from: HTMLElement) {
         // the middle of the morph
         if (flock) (layer.firstElementChild as HTMLElement).style.opacity = "0.001"
         // The scrim's crosshair marks: a 140px pattern of the 40px mark (kept after <main>,
-        // which stays the layer's first child: the panel)
+        // which stays the layer's first child: the panel). On a phone (Figma 3292:19501) 32px marks
+        // every 122px, laid out as the frame does: rows of as many as fit, centred in the window
+        const phone = matchMedia("(max-width: 599px)").matches
+        const mark = phone ? 32 : 40
+        const tile = phone ? 122 : 140
+        const across = Math.max(1, Math.floor((innerWidth + (tile - mark)) / tile))
+        const x0 = phone ? (innerWidth - (across * mark + (across - 1) * (tile - mark))) / 2 : 0
         layer.insertAdjacentHTML(
             "beforeend",
-            `<svg class="marks" aria-hidden="true"><defs><pattern id="overlay-marks" width="140" height="140" patternUnits="userSpaceOnUse"><image href="/overlay-mark${document.documentElement.dataset.theme === "dark" ? "-dark" : ""}.svg" width="40" height="40"/></pattern></defs><rect width="100%" height="100%" fill="url(#overlay-marks)"/></svg>`,
+            `<svg class="marks" aria-hidden="true"><defs><pattern id="overlay-marks" x="${x0}" width="${tile}" height="${tile}" patternUnits="userSpaceOnUse"><image href="/overlay-mark${phone ? "-mobile" : ""}${document.documentElement.dataset.theme === "dark" ? "-dark" : ""}.svg" width="${mark}" height="${mark}"/></pattern></defs><rect width="100%" height="100%" fill="url(#overlay-marks)"/></svg>`,
         )
         // Only the card's own scrolling parts (the media column, the write-up, or the whole
         // card when it is one column) take a wheel; anywhere else it would scroll the page

@@ -18,6 +18,17 @@ if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
     if (import.meta.env.DEV) import("./scroll-tune")
 }
 
+// The page's own scrollbar (src/lib/scrollbar.ts), loaded the first time a mouse comes near the right
+// edge; a touch screen scrolls by touch and never loads it
+if (matchMedia("(hover: hover)").matches) {
+    const onMove = (e: PointerEvent) => {
+        if (e.pointerType === "touch" || e.clientX < innerWidth - 40) return
+        removeEventListener("pointermove", onMove)
+        import("./scrollbar").catch(() => {})
+    }
+    addEventListener("pointermove", onMove, { passive: true })
+}
+
 // Warm the browser cache for the page a link points at, so Barba's fetch is instant
 const warmed = new Set<string>()
 addEventListener(

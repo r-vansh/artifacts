@@ -1,4 +1,4 @@
-import { anchor, peek, prime, takeOver, toggle } from "./theme"
+import { anchor, hold, peek, prime, takeOver, toggle } from "./theme"
 
 // The cord the dark mode switch hangs from (src/components/Cord.astro, Figma node 3252:17850):
 // a chain of light masses on soft springs with a heavier sun at the end. A pointer brushing past
@@ -235,6 +235,14 @@ function still() {
     return !pointer || Math.hypot(pointer.vx, pointer.vy) < 3
 }
 
+// The top of the cord follows the sheet's nail through a short low-pass (time constant SMOOTH, s): the
+// sheet's top edge ripples a little, a few px up and down from frame to frame, and the cord's top end
+// copied every ripple (seen in Vansh's screen recording from a phone, 2026-11-07: its top end jumped 10
+// to 25 px against the sheet's edge from one frame to the next while the rest of the cord was smooth)
+const SMOOTH = 0.03
+let nail: [number, number] | undefined
+let frameDt = 0.016
+
 // Where the top of the cord should be: where it is sewn on, or on its way down from above
 function top(now: number): [number, number] {
     if (lowering) {
@@ -244,7 +252,18 @@ function top(now: number): [number, number] {
     }
     const a = sewn || inReach() ? anchor() : undefined
     drawFrom(a ? cut || seam() : 0)
-    return a ? [a[0] / size, a[1] / size] : [0, 0]
+    if (!a) {
+        nail = undefined
+        return [0, 0]
+    }
+    // Only while it is peeking: the fall is fast, and a cord that trails it would come apart from it
+    if (!nail || sewn) nail = [a[0], a[1]]
+    else {
+        const k = 1 - Math.exp(-frameDt / SMOOTH)
+        nail[0] += (a[0] - nail[0]) * k
+        nail[1] += (a[1] - nail[1]) * k
+    }
+    return [nail[0] / size, nail[1] / size]
 }
 
 // What the pull does to the page
@@ -264,7 +283,8 @@ function feel() {
 
 function frame(now: number) {
     raf = 0
-    spare += Math.min(0.05, (now - last) / 1000)
+    frameDt = Math.min(0.05, (now - last) / 1000)
+    spare += frameDt
     last = now
     const air = Math.exp(-params.drag * STEP)
     const fromX = liftX
@@ -292,6 +312,15 @@ function frame(now: number) {
     }
     raf = frozen ? 0 : requestAnimationFrame(frame)
 }
+
+// The sheet has taken its step (cloth.ts): the cord takes its own now, in the same frame, so that its
+// top end is where the sheet's nail is, not where it was a frame ago
+document.addEventListener("cloth:frame", () => {
+    if (!raf || frozen) return
+    cancelAnimationFrame(raf)
+    raf = 0
+    frame(performance.now())
+})
 
 function wake() {
     if (raf || frozen) return
@@ -374,8 +403,18 @@ wake()
 addEventListener("pointermove", point, { passive: true })
 // Leaving the window (`pointerleave` alone does not always fire: see dock.ts)
 document.addEventListener("mouseout", (e) => e.relatedTarget || held || away())
+// Pulling the cord down at the top of the page must not also pull the page (Safari's rubber band: an
+// iPad's page moved under the finger, which scrolled it and cancelled the pointer, so the peek armed and
+// healed again and again at the moment of the pull: a flicker at the top, Vansh, 2026-11-07). The page's
+// own overscroll is off while it is held, and a touch that moves is not allowed to scroll
+const pageFree = () => document.documentElement.style.removeProperty("overscroll-behavior")
+addEventListener("touchmove", (e) => held && e.preventDefault(), { passive: false })
+// The cord is not text: nothing to select, no menu on a long press
+for (const t of ["contextmenu", "selectstart", "dragstart"]) box.addEventListener(t, (e) => e.preventDefault())
 pull.addEventListener("pointerdown", (e) => {
     held = true
+    hold(true)
+    document.documentElement.style.setProperty("overscroll-behavior", "none")
     spent = moved = false
     point(e)
     pressX = pointer?.x ?? 0
@@ -387,6 +426,8 @@ pull.addEventListener("pointerdown", (e) => {
 })
 const release = (e: PointerEvent) => {
     held = false
+    hold(false)
+    pageFree()
     if (e.pointerType === "touch") away()
     else wake()
 }
@@ -404,6 +445,8 @@ document.addEventListener("cloth:fall", () => {
     if (!inReach()) return
     sewn = true
     held = false
+    hold(false)
+    pageFree()
     pointer = undefined
     near = false
     drawFrom(cut || seam())
@@ -447,6 +490,7 @@ takeOver()
 
 const clean = () => {
     held = spent = moved = sewn = near = false
+    hold(false)
     lowering = liftX = liftY = spare = clock = gust = 0
     pointer = undefined
     box.style.height = pull.style.color = ""

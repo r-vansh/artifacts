@@ -496,7 +496,10 @@ function frame(now: number) {
 }
 
 function sync() {
-    const go = on && seen && !document.hidden && !reduce.matches
+    // Not under the loading animation (splash.ts) until its reveal out opens onto the page: hidden
+    // there, it would only take frames from the loader (it costs most on a phone)
+    const veiled = root.hasAttribute("data-splash") && root.dataset.loader === "active"
+    const go = on && seen && !document.hidden && !reduce.matches && !veiled
     if (go && !running) {
         running = true
         last = 0
@@ -512,8 +515,13 @@ function sync() {
 
 // Night on the dark page, day on the light one. A change crossfades: the old sky fades out, the
 // new one is laid out while it is hidden, then fades in
+// The page that is really chosen: a peek under the cloth (data-peek, theme.ts) only looks at the other
+// one, so the sky stays as it is (it used to swap to the other sky for the length of a pull and back
+// on release, starting afresh each time, and showed the wrong sky for a moment)
+const chosenDark = () => (root.dataset.peek ? root.dataset.peek === "light" : root.dataset.theme === "dark")
+
 function theme() {
-    const want: Mode = root.dataset.theme === "dark" ? "night" : "day"
+    const want: Mode = chosenDark() ? "night" : "day"
     clearTimeout(swap)
     if (!on) {
         on = true
@@ -530,7 +538,7 @@ function theme() {
     }
     canvas.style.opacity = "0"
     swap = window.setTimeout(() => {
-        mode = root.dataset.theme === "dark" ? "night" : "day"
+        mode = chosenDark() ? "night" : "day"
         meteors = []
         queue = []
         birds = []
@@ -543,7 +551,8 @@ function theme() {
     }, 650)
 }
 
-new MutationObserver(theme).observe(root, { attributes: true, attributeFilter: ["data-theme"] })
+new MutationObserver(theme).observe(root, { attributes: true, attributeFilter: ["data-theme", "data-peek"] })
+new MutationObserver(() => sync()).observe(root, { attributes: true, attributeFilter: ["data-splash", "data-loader"] })
 new ResizeObserver(() => on && size()).observe(canvas)
 new IntersectionObserver(([e]) => {
     seen = e.isIntersecting

@@ -123,7 +123,8 @@ export interface Options {
         and how soft and torn its rim is */
     core: number
     coreEdge: number
-    /** Watercolour spread: progress to radius (0.5 is diffusion, radius ~ sqrt t),
+    /** Watercolour spread: how far the wetter directions run ahead early and ease out
+        (1 even everywhere; never speeds up, every direction reaches its outline at the end),
         how lopsided the wet paper makes it and at what scale, feathered fingers,
         strands curling off along the flow and their scale, the pigment rim's
         darkness and width, granulation, loose islands ahead of the front, and how
@@ -369,7 +370,7 @@ export const defaults: Options = {
     revealSoft: 0.12,
     core: 0.135,
     coreEdge: 0.06,
-    spread: 0.5,
+    spread: 0.7,
     wetness: 0.7,
     wetScale: 1.5,
     feather: 0,
@@ -461,8 +462,8 @@ export const defaults: Options = {
     gateOpacity: 0.15,
     gateSpeed: 2.5,
     gateSway: 1.4,
-    gateText: "click anywhere to enter",
-    gateTouchText: "Tap anywhere to enter",
+    gateText: "click to enter",
+    gateTouchText: "tap to enter",
     gateTime: 0.6,
     gateLabelSize: 20,
     gateAt: null,
@@ -483,12 +484,61 @@ export const defaults: Options = {
 
 type NumKey = { [K in keyof Options]: Options[K] extends number ? K : never }[keyof Options]
 
-const MIN_QUALITY = 0.5 // lowest share of the device pixel ratio the watchdog drops to
-const SLOW_FRAME = 1000 / 45 // ms; slower than this on average and the resolution drops
+const MIN_QUALITY = 0.5 // lowest share of the device pixel ratio (tier 3)
 // A high refresh rate is no reason to draw this flat out: the GPU would have nothing left, and a
 // saturated GPU is what makes the page and the cursor pill lag
 const MAX_FRAME = 1000 / 60 // ms; at most this often
 const GATE_FRAME = 1000 / 30 // ms; while the gate waits: faint and slow, it doesn't show
+
+// Quality tiers: what the device's GPU actually manages decides how much it draws, so a strong
+// phone (or any laptop) gets the full look and a mid-range one (a Moto G52, Adreno 610) steps down
+// only as far as it has to. Measured on this machine's integrated GPU at 402 x 874 @3x (804 x 1748
+// drawn), per frame: form 3.1 ms, liquid 0.6, marks 3.8, so 7.2 ms at tier 0 and 5.6 at tier 1; a
+// mid-range phone's GPU is several times slower
+export const TIERS = [
+    // 0: the full look: the form and the liquid on a quarter of the buffer, 2x, 60 a second
+    { pass: 4, quality: 1, frame: MAX_FRAME },
+    // 1: the form and the liquid on a sixth (the marks keep their crisp hatching; the stain's
+    // feathered edge is a touch rougher)
+    { pass: 6, quality: 1, frame: MAX_FRAME },
+    // 2: the same picture drawn 30 times a second
+    { pass: 6, quality: 1, frame: GATE_FRAME },
+    // 3: the lowest resolution (1x: the hatching turns soft), 30 a second
+    { pass: 4, quality: MIN_QUALITY, frame: GATE_FRAME },
+]
+// Every threshold of the tier choice, in one place, to tune from a real phone
+export const TUNING = {
+    // The benchmark, while the gate waits: the GPU time of a frame (a timer query where the browser
+    // has one, else a fence polled from the page; median of `samples` frames after `warmup`)
+    // must fit these to keep a tier at 60 a second (tiers 0 and 1) or 30 (tier 2); the gate draws
+    // only 30 a second, so each frame is timed on an idle GPU
+    budget60: 13, // ms, of 16.7, on a touch screen: the page and the browser's compositing of a
+    // window three times as dense need the rest
+    budget60Desk: 15.5, // ms, with a mouse: a desktop's compositing costs little (a laptop's integrated
+    // GPU at 1440 x 900 drawn at 1.5x measures 14.2 ms and holds 60, so it keeps the full look)
+    budget30: 26, // ms, of 33.3
+    warmup: 8, // gate frames first (shaders compiling, the fade in)
+    samples: 7,
+    // Without a GPU timer (iOS Safari, Firefox): the median time between `paceSamples` frames
+    // drawn at the tier's own pace must stay within `paceSlack` times that pace
+    paceSamples: 20,
+    paceSlack: 1.15,
+    // A device started at tier 1 by a hint goes back to tier 0 if its cost times this still fits
+    up: 1.35,
+    // Frame pacing (any time, also when the benchmark had no time: a tap in its first second):
+    // frames averaging over `slow` times the tier's own pace for `slowFor` ms step one tier down
+    slow: 1.25,
+    slowFor: 750, // ms
+    // ...with a mouse as lenient as the watchdog was before the tiers
+    slowDesk: 1.4,
+    slowForDesk: 1500, // ms
+    // A tier forced with ?loader= gives way only when frames average over this times its pace
+    collapse: 2.5,
+}
+// Hints, only for the tier a device starts at, never to hold it down: a GPU known to be mid-range
+// or slower, or a touch device with few cores or little memory, starts at tier 1 (and is still
+// measured, and goes back to 0 if it can). Apple's GPUs say only "Apple GPU", so iPhones start at 0
+const WEAK_GPU = /Adreno \(TM\) [1-6]\d\d\b|Adreno [1-6]\d\d\b|Mali-(T|4|G[1-6]\d\b)|PowerVR|SwiftShader|llvmpipe|Software/i
 const DEG = Math.PI / 180
 
 const mount: Mount<Options> = (canvas, options) => {
@@ -902,17 +952,38 @@ const mount: Mount<Options> = (canvas, options) => {
         u.uWaveSlope.value = c.shockHeight > 0 ? wave / (c.shockHeight * Math.PI * 2) : 0
     }
 
-    // Share of the device pixel ratio drawn at; the watchdog lowers it on slow GPUs
-    let quality = 1
+    // The quality tier (see TIERS): where it starts, and whether ?loader=0..3 (or ?quality=)
+    // forces one, to compare them on a phone
+    const touchScreen = window.matchMedia?.("(hover: none), (pointer: coarse)").matches ?? false
+    const forced = (() => {
+        const q = new URLSearchParams(location.search)
+        const s = q.get("loader") || q.get("quality")
+        const v = s ? Number(s) : NaN
+        return Number.isInteger(v) && v >= 0 && v < TIERS.length ? v : -1
+    })()
+    const gpuName = (() => {
+        try {
+            const gl = renderer.getContext()
+            const info = gl.getExtension("WEBGL_debug_renderer_info")
+            return String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER) ?? "")
+        } catch {
+            return ""
+        }
+    })()
+    const nav = navigator as Navigator & { deviceMemory?: number }
+    const hinted = WEAK_GPU.test(gpuName) || (touchScreen && ((nav.hardwareConcurrency || 8) <= 4 || (nav.deviceMemory || 8) <= 3))
+    let tier = forced >= 0 ? forced : hinted ? 1 : 0
     const resize = () => {
+        const { pass: smallPass, quality } = TIERS[tier]
+        canvas.dataset.tier = String(tier)
         const w = Math.max(1, canvas.clientWidth)
         const h = Math.max(1, canvas.clientHeight)
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2) * quality)
         renderer.setSize(w, h, false)
         const size = renderer.getDrawingBufferSize(new THREE.Vector2())
-        target.setSize(Math.ceil(size.x / 4), Math.ceil(size.y / 4))
+        target.setSize(Math.ceil(size.x / smallPass), Math.ceil(size.y / smallPass))
         scene.setSize(size.x, size.y)
-        flowTarget.setSize(Math.ceil(size.x / 4), Math.ceil(size.y / 4))
+        flowTarget.setSize(Math.ceil(size.x / smallPass), Math.ceil(size.y / smallPass))
         u.uRes.value.copy(size)
         m.uRes.value.copy(size)
         // Marks are sized against a 1000 px wide frame
@@ -940,7 +1011,13 @@ const mount: Mount<Options> = (canvas, options) => {
     // the page underneath stays hidden until the reveal out. The first click, tap,
     // Enter or Space unlocks sound, fades the faint ink out, and the loader plays from
     // the start at full strength.
-    const touch = window.matchMedia?.("(hover: none)").matches ?? false
+    // A touch screen: no hover, or a coarse main pointer (an iPad reports hover when it has a keyboard
+    // or a trackpad, and then "(hover: none)" alone left it with a cursor pill that waits for a mouse
+    // that never moves: no button at all, Vansh, 2026-11-07)
+    const touch = window.matchMedia?.("(hover: none), (pointer: coarse)").matches ?? false
+    // Anything that can be touched but did not say so (a touch laptop, an iPad in desktop mode): its
+    // pill stands at the bottom like a touch screen's until a real mouse moves
+    const maybeTouch = !touch && (navigator.maxTouchPoints ?? 0) > 0
     // The label is the cursor's stand-in (Figma node 3202:17823): a dark pill with a mouse
     // icon and the text, 6px padding and a 4px gap, Geist Light 16px in Gray/100 on a
     // gradient from Gray/700 to Gray/900, lifted by two shadows. The frame's 2.5 px backdrop blur
@@ -973,6 +1050,27 @@ const mount: Mount<Options> = (canvas, options) => {
         '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true" style="flex:none"><rect x="4.5" y="4.5" width="11" height="15" rx="5.5" stroke="currentColor"/><rect x="9" y="7" width="2" height="5" rx="1" fill="currentColor"/><rect x="9.5" y="0" width="1" height="3" rx=".5" fill="currentColor"/><rect x="5.503" y=".999" width="1" height="3" rx=".5" fill="currentColor" transform="rotate(-30 6.003 2.499)"/><rect x="12.503" y=".999" width="1" height="3" rx=".5" fill="currentColor" transform="rotate(30 13.003 2.499)"/></svg><span></span>'
     const labelIcon = label.firstElementChild as SVGElement
     const labelText = label.lastElementChild as HTMLElement
+    // On a touch screen (Figma node 3293:19891): a tap icon (a hand with three rays) in place of the
+    // mouse, 14px text, 4px padding, a radial gradient from Gray/500 down to Gray/900, and four 6px
+    // squares standing at its outer corners like selection handles, down the screen's bottom, 60px up
+    const tapIcon = document.createElement("span")
+    tapIcon.style.cssText = "display:none;flex:none;width:16px;height:16px"
+    tapIcon.innerHTML =
+        '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="display:block;overflow:visible"><path transform="translate(2 3.8)" d="M2.49586 11L0.663358 7.875C0.500212 7.58805 0.457187 7.24822 0.543672 6.92967C0.630157 6.61112 0.839131 6.3397 1.12499 6.17466C1.41085 6.00961 1.75039 5.96433 2.06951 6.0487C2.38863 6.13307 2.66142 6.34024 2.82836 6.625L3.99586 8.5V1.75C3.99586 1.41848 4.12755 1.10054 4.36197 0.866117C4.5964 0.631696 4.91434 0.5 5.24586 0.5C5.57738 0.5 5.89532 0.631696 6.12974 0.866117C6.36416 1.10054 6.49586 1.41848 6.49586 1.75V5.25C6.49586 4.91848 6.62755 4.60054 6.86197 4.36612C7.0964 4.1317 7.41434 4 7.74586 4C8.07738 4 8.39532 4.1317 8.62974 4.36612C8.86416 4.60054 8.99586 4.91848 8.99586 5.25V6.25C8.99586 5.91848 9.12755 5.60054 9.36197 5.36612C9.5964 5.1317 9.91434 5 10.2459 5C10.5774 5 10.8953 5.1317 11.1297 5.36612C11.3642 5.60054 11.4959 5.91848 11.4959 6.25V8.5C11.4959 10 10.9959 11 10.9959 11" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><rect x="6.72" y="0" width="1" height="3" rx=".5" fill="currentColor"/><rect x="3.72" y="1" width="1" height="3" rx=".5" fill="currentColor" transform="rotate(-30 4.22 2.5)"/><rect x="9.72" y="1" width="1" height="3" rx=".5" fill="currentColor" transform="rotate(30 10.22 2.5)"/></svg>'
+    labelIcon.after(tapIcon)
+    const handles = (
+        [
+            ["left:-6px;top:-6px", "var(--gray-700, #5c5c61)"],
+            ["right:-6px;top:-6px", "var(--gray-900, #2a2a2d)"],
+            ["right:-6px;bottom:-6px", "var(--gray-900, #2a2a2d)"],
+            ["left:-6px;bottom:-6px", "var(--gray-800, #434347)"],
+        ] as const
+    ).map(([at, colour]) => {
+        const h = document.createElement("i")
+        h.style.cssText = `display:none;position:absolute;width:6px;height:6px;${at};background:${colour}`
+        label.append(h)
+        return h
+    })
     // the label sits where the pointer is, in place of the cursor
     const placeLabel = (x: number, y: number) => {
         label.style.transform = `translate(calc(${x}px - 50%), calc(${y}px - 50%))`
@@ -982,8 +1080,44 @@ const mount: Mount<Options> = (canvas, options) => {
         const r = canvas.getBoundingClientRect()
         label.style.transform = `translate(calc(${r.left + r.width / 2}px - 50%), ${r.top + r.height * 0.66}px)`
     }
+    // The pill's two looks: the cursor's stand-in (the mouse, Figma 3202:17823) and the touch one (the
+    // tap icon at the bottom of the window, Figma 3293:19891)
+    const LOOKS = {
+        cursor: {
+            left: "0",
+            top: "0",
+            bottom: "",
+            padding: "6px",
+            font: "300 16px/1 var(--sans, sans-serif)",
+            // Figma node 3298:19895 (2026-11-08): the radial gradient from Gray/500 to Gray/900 and the four
+            // selection handles at its corners, as on a touch screen
+            background:
+                "radial-gradient(circle 120px at -28px -23px, var(--gray-500, #8e8e95) 0%, var(--gray-600, #74747b) 25%, var(--gray-700, #5c5c61) 50%, var(--gray-800, #434347) 75%, var(--gray-900, #2a2a2d) 100%)",
+        },
+        touch: {
+            left: "50%",
+            top: "auto",
+            bottom: "calc(60px + env(safe-area-inset-bottom, 0px))",
+            transform: "translateX(-50%)",
+            padding: "4px",
+            font: "300 14px/1 var(--sans, sans-serif)",
+            background:
+                "radial-gradient(circle 120px at -28px -23px, var(--gray-500, #8e8e95) 0%, var(--gray-600, #74747b) 25%, var(--gray-700, #5c5c61) 50%, var(--gray-800, #434347) 75%, var(--gray-900, #2a2a2d) 100%)",
+        },
+    }
+    let touchLook = false
+    const setLook = (touchy: boolean) => {
+        touchLook = touchy
+        Object.assign(label.style, touchy ? LOOKS.touch : LOOKS.cursor)
+        labelText.textContent = touchy ? c.gateTouchText : c.gateText
+        labelIcon.style.display = touchy ? "none" : ""
+        tapIcon.style.display = touchy ? "block" : "none"
+        for (const h of handles) h.style.display = "block"
+    }
     const onGateMove = (e: PointerEvent) => {
-        if (!gated || touch || still) return
+        if (!gated || touch || still || e.pointerType === "touch") return
+        // A real pointer moved: the cursor's stand-in, where it is
+        if (touchLook) setLook(false)
         placeLabel(e.clientX, e.clientY)
         label.style.opacity = "1"
     }
@@ -1006,15 +1140,20 @@ const mount: Mount<Options> = (canvas, options) => {
             canvas.style.cursor = "none"
             document.body.style.cursor = "none"
         }
-        labelText.textContent = touch ? c.gateTouchText : c.gateText
-        // no mouse on a touch screen
-        labelIcon.style.display = touch ? "none" : ""
+        // no mouse on a touch screen: the tap icon, and the pill at the bottom of the window, 60px up
+        setLook(touch)
         ;(canvas.parentElement ?? document.body).append(label)
-        if (touch || still) {
+        if (touch) {
+            label.style.opacity = "1"
+        } else if (still) {
             centreLabel()
             label.style.opacity = "1"
         } else if (c.gateAt) {
             placeLabel(c.gateAt.x, c.gateAt.y)
+            label.style.opacity = "1"
+        } else if (maybeTouch) {
+            // No pointer has moved and the screen may be touched: the touch pill, until a mouse does
+            setLook(true)
             label.style.opacity = "1"
         } else label.style.opacity = "0"
     }
@@ -1034,6 +1173,9 @@ const mount: Mount<Options> = (canvas, options) => {
         // A short buffer: wait until audio is running and the recordings are decoded
         // (at least gateDelay, at most a second), so the impact's sound plays cleanly
         // with it. The faint form keeps moving meanwhile.
+        // The same on a touch screen as on a desktop (a version that did not wait for the audio on a
+        // phone felt too fast, Vansh, 2026-11-07): sound.ts now also unlocks on the finger lifting, which
+        // is when iOS starts audio, so this wait is over as soon as that happens instead of running out
         Promise.all([sound.ready(1), new Promise((r) => setTimeout(r, Math.max(c.gateDelay, 0) * 1000))]).then(() => {
             if (stopped) return
             // the impact's sound goes on the audio clock 50 ms ahead, and the visual
@@ -1047,13 +1189,22 @@ const mount: Mount<Options> = (canvas, options) => {
             if (stopped) return
             const T = Math.max(c.gateTime, 0.01)
             render()
+            // The faint frame is copied twice (the snapshot, and the overlay that lifts away) at a size
+            // capped at about 1.6 million pixels: a phone's canvas is three times as dense as it is
+            // wide, and copying it whole on the tap stalled the opening. The overlay is drawn at the
+            // canvas's size on screen (CSS), so a smaller copy only softens the faint frame
+            // On a phone the cap is the window's own size in CSS px (804 x 1748 is under 1.6 million,
+            // so the copy, and the overlay redrawn and blended over the canvas every frame of the
+            // dissolve, were at full size there)
+            const cap = touchScreen ? Math.max(1, canvas.clientWidth * canvas.clientHeight) : 1.6e6
+            const shrink = Math.min(1, Math.sqrt(cap / (canvas.width * canvas.height)))
             const snap = document.createElement("canvas")
-            snap.width = canvas.width
-            snap.height = canvas.height
-            snap.getContext("2d")?.drawImage(canvas, 0, 0)
+            snap.width = Math.max(1, Math.round(canvas.width * shrink))
+            snap.height = Math.max(1, Math.round(canvas.height * shrink))
+            snap.getContext("2d")?.drawImage(canvas, 0, 0, snap.width, snap.height)
             const overlay = document.createElement("canvas")
-            overlay.width = canvas.width
-            overlay.height = canvas.height
+            overlay.width = snap.width
+            overlay.height = snap.height
             const octx = overlay.getContext("2d")!
             const r = canvas.getBoundingClientRect()
             Object.assign(overlay.style, {
@@ -1149,6 +1300,114 @@ const mount: Mount<Options> = (canvas, options) => {
     let introTime = 0
     let frameAvg = 16
     let slowFor = 0
+    let lastEvery = 0
+
+    // Down a tier (never back up once the loader is under way, so nothing flips back and forth);
+    // the targets are made again only when the tier draws at another size
+    const setTier = (next: number) => {
+        const before = TIERS[tier]
+        tier = next
+        const now = TIERS[tier]
+        if (now.pass !== before.pass || now.quality !== before.quality) resize()
+        else canvas.dataset.tier = String(tier)
+        frameAvg = gated ? GATE_FRAME : now.frame
+        slowFor = -500
+        bench.frames = Math.min(bench.frames, TUNING.warmup - 3) // the first frames after that are slow too
+        bench.samples = []
+    }
+
+    // The benchmark (see TUNING), while the gate waits. Where the browser has a GPU timer
+    // (Chrome on most desktops and many Androids), single gate frames are timed on the GPU: the
+    // gate draws every other screen frame, so each starts on an idle GPU. Elsewhere (iOS Safari,
+    // Firefox) the gate draws at the tier's own pace for a moment (faint and slow, it doesn't
+    // show) and the screen's frame pacing says whether it holds: a GPU that can't keep up holds
+    // the frames back. (A fence polled from the page was tried and dropped: its latency, 1-20 ms
+    // for nothing at all, swamped the frame.) A device that holds its tier stays there; one that
+    // doesn't steps down a tier and is measured again; one a hint started at tier 1 is tried at
+    // tier 0 once. A forced tier skips it
+    const gl = renderer.getContext() as WebGL2RenderingContext
+    const timer = (() => {
+        try {
+            return gl.getExtension("EXT_disjoint_timer_query_webgl2") as { TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number } | null
+        } catch {
+            return null
+        }
+    })()
+    const bench = { on: forced < 0, frames: 0, probing: false, samples: [] as number[], lifted: false }
+    // A verdict on the current tier: holds it, holds 30 a second, and whether tier 0 is worth a try
+    const decide = (holds: boolean, holds30: boolean, tryFull: boolean) => {
+        const done = () => (bench.on = false)
+        bench.samples = []
+        if (tier === 0) {
+            // tried 0 after a hint and it didn't hold: back to 1 for good
+            if (holds || bench.lifted) done()
+            if (!holds) setTier(1)
+        } else if (tier === 1) {
+            if (hinted && !bench.lifted && tryFull) {
+                // a hint started it low, but it measures well: the full look after all
+                bench.lifted = true
+                setTier(0)
+            } else {
+                // tier 2 draws the same picture, so it needs no measuring again; tier 3 is the floor
+                done()
+                if (!holds) setTier(holds30 ? 2 : 3)
+            }
+        } else {
+            done()
+            if (tier === 2 && !holds) setTier(3)
+        }
+    }
+    const measured = (ms: number) => {
+        bench.probing = false
+        // NaN: no reading (the GPU was disjoint); a frame that never finished counts as 1 s
+        if (stopped || !bench.on || Number.isNaN(ms)) return
+        bench.samples.push(ms)
+        const s = bench.samples.slice().sort((a, b) => a - b)
+        // far too slow already after three: no need for the rest
+        if (s.length < TUNING.samples && !(s.length >= 3 && s[0] > 1.5 * TUNING.budget30)) return
+        const m = s[s.length >> 1]
+        // what it found, on the canvas, to read on a phone (data-tier; data-gpu: median GPU ms at the tier measured)
+        canvas.dataset.gpu = `${m.toFixed(1)}@${tier}`
+        const b60 = touchScreen ? TUNING.budget60 : TUNING.budget60Desk
+        const budget = TIERS[tier].frame === MAX_FRAME ? b60 : TUNING.budget30
+        decide(m <= budget, m <= TUNING.budget30, m * TUNING.up <= b60)
+    }
+    // Frame pacing: the time between this draw and the last, at the tier's own pace
+    const paced = (gap: number) => {
+        if (stopped || !bench.on) return
+        bench.samples.push(gap)
+        const pace = TIERS[tier].frame
+        const s = bench.samples.slice().sort((a, b) => a - b)
+        // far too slow already after five: no need for the rest
+        if (s.length < TUNING.paceSamples && !(s.length >= 5 && s[0] > 2 * pace)) return
+        const m = s[s.length >> 1]
+        canvas.dataset.gpu = `pace ${m.toFixed(1)}@${tier}`
+        decide(m <= pace * TUNING.paceSlack, m <= GATE_FRAME * TUNING.paceSlack, m <= pace * TUNING.paceSlack)
+    }
+    const probe = () => {
+        const q = timer && gl.createQuery()
+        if (!timer || !q) return render()
+        bench.probing = true
+        gl.beginQuery(timer.TIME_ELAPSED_EXT, q)
+        render()
+        gl.endQuery(timer.TIME_ELAPSED_EXT)
+        const t0 = performance.now()
+        const check = () => {
+            if (stopped) return
+            if (!gl.getQueryParameter(q, gl.QUERY_RESULT_AVAILABLE)) {
+                if (performance.now() - t0 < 1000) setTimeout(check, 5)
+                else {
+                    gl.deleteQuery(q)
+                    measured(1000)
+                }
+                return
+            }
+            const ms = gl.getParameter(timer.GPU_DISJOINT_EXT) ? NaN : gl.getQueryParameter(q, gl.QUERY_RESULT) / 1e6
+            gl.deleteQuery(q)
+            measured(ms)
+        }
+        setTimeout(check, 5)
+    }
 
     const render = () => {
         u.uTime.value = time
@@ -1273,13 +1532,16 @@ const mount: Mount<Options> = (canvas, options) => {
         raf = 0
         if (!running) return
         // Not this one: the next one the screen offers
-        const every = gated ? GATE_FRAME : MAX_FRAME
+        // (the benchmark without a GPU timer has the gate draw at the tier's own pace for a moment)
+        const pacing = bench.on && !timer && gated && !entering && bench.frames >= TUNING.warmup
+        const every = gated && !pacing ? GATE_FRAME : TIERS[tier].frame
         if (t < nextDraw - 1) {
             raf = requestAnimationFrame(loop)
             return
         }
         nextDraw = Math.max(nextDraw + every, t)
-        const dt = last ? Math.min(t - last, 100) : 16
+        const gap = last ? t - last : 16
+        const dt = Math.min(gap, 100)
         last = t
         if (!scrubbing) {
             time += dt / 1000
@@ -1288,16 +1550,37 @@ const mount: Mount<Options> = (canvas, options) => {
             intro.time(Math.min(introTime, intro.duration()))
         }
 
-        // Draw at a lower resolution when frames stay slow; marks keep their size
-        frameAvg += (dt - frameAvg) * 0.05
-        slowFor = frameAvg > Math.max(SLOW_FRAME, every * 1.4) ? slowFor + dt : 0
-        if (slowFor > 1500 && quality > MIN_QUALITY) {
-            quality = Math.max(MIN_QUALITY, quality * 0.8)
-            resize()
-            slowFor = 0
+        // Frame pacing: frames that stay slow step one tier down (see TIERS, TUNING). The gate
+        // opening (30 to 60 a second) starts the average afresh, or the gate's slower frames
+        // would count as slow, and the tap's own work (the audio starting, the snapshot, the
+        // dissolve) doesn't count. Slow time is counted as it passes, up to 250 ms a frame (so
+        // a hidden tab coming back does not count): it used to sum dt, capped at 100 ms, which
+        // took 15 frames, about 5 s at 3 fps, to act
+        // the benchmark only runs while the gate waits; a tap before it is done leaves the rest to this
+        if (!gated) bench.on = false
+        if (every !== lastEvery) {
+            frameAvg = every
+            slowFor = -500
         }
+        lastEvery = every
+        frameAvg += (dt - frameAvg) * 0.05
+        const slow = every * (forced >= 0 && tier === forced ? TUNING.collapse : touchScreen ? TUNING.slow : TUNING.slowDesk)
+        if (entering || bench.on) slowFor = Math.min(slowFor, 0)
+        else slowFor = frameAvg > slow ? slowFor + Math.min(gap, 250) : 0
+        if (slowFor > (touchScreen ? TUNING.slowFor : TUNING.slowForDesk) && tier < TIERS.length - 1) setTier(tier + 1)
 
-        render()
+        // While the gate waits, now and then a frame is timed on the GPU instead (the benchmark),
+        // or the pace of the frames is (the first two at a new pace don't count)
+        let drawn = false
+        if (bench.on && gated && !entering && ++bench.frames > TUNING.warmup) {
+            if (timer) {
+                if (!bench.probing) {
+                    probe()
+                    drawn = true
+                }
+            } else if (bench.frames > TUNING.warmup + 2) paced(gap)
+        }
+        if (!drawn) render()
         raf = requestAnimationFrame(loop)
     }
 
@@ -1348,7 +1631,7 @@ const mount: Mount<Options> = (canvas, options) => {
                             { ...origin("revealY", "y"), label: "Origin y", min: -0.3, max: 0.3, step: 0.01 },
                             { ...uni("core", u.uCore), label: "Core", hint: "Middle that always shows", min: 0, max: 0.8, step: 0.01 },
                             { ...uni("coreEdge", u.uCoreEdge), label: "Core edge", hint: "How soft and torn its rim is", min: 0, max: 0.2, step: 0.005 },
-                            { ...uni("spread", u.uSpread), label: "Spread curve", hint: "0.5 spreads like a drop on wet paper; 1 is even", min: 0.2, max: 1.5, step: 0.05 },
+                            { ...uni("spread", u.uSpread), label: "Spread curve", hint: "Lower: wetter parts lead early and ease out; 1 is even", min: 0.2, max: 1, step: 0.05 },
                             { ...uni("wetness", u.uWetness), label: "Wetness", hint: "How lopsided the stain grows", min: 0, max: 1, step: 0.01 },
                             { ...uni("wetScale", u.uWetScale), label: "Wetness scale", min: 0.5, max: 8, step: 0.1 },
                             { ...uni("feather", u.uFeather), label: "Feather", hint: "Soft fingers along the edge", min: 0, max: 4, step: 0.05 },
@@ -1748,7 +2031,18 @@ const mount: Mount<Options> = (canvas, options) => {
     else playIntro()
     render()
 
-    const ro = new ResizeObserver(resize)
+    // On a phone the address bar sliding in or out resizes the window several times in a row,
+    // and each resize makes every target again: wait for it to settle (the canvas is stretched
+    // by CSS meanwhile)
+    let resizeTimer = 0
+    const ro = new ResizeObserver(
+        touchScreen
+            ? () => {
+                  clearTimeout(resizeTimer)
+                  resizeTimer = window.setTimeout(() => !stopped && resize(), 150)
+              }
+            : resize
+    )
     ro.observe(canvas)
     canvas.addEventListener("pointermove", onMove)
     canvas.addEventListener("click", onClick)

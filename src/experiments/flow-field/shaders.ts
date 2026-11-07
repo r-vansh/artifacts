@@ -176,7 +176,7 @@ uniform vec2 uRevealOrigin; // frame widths from the middle
 uniform float uRevealSoft;  // how far in from the front marks thin out, frame widths
 uniform float uCore;        // radius always shown
 uniform float uCoreEdge;
-uniform float uSpread;      // progress to radius; 0.5 is diffusion (radius ~ sqrt t)
+uniform float uSpread;      // how much the wetter directions lead early and ease out; 1 is even
 uniform float uWetness;     // how lopsided the stain grows
 uniform float uWetScale;
 uniform float uFeather;
@@ -367,12 +367,27 @@ void main() {
     float t = clamp(uReveal, 0.0, 1.0);
     float core = 1.0 - smoothstep(uCore - uCoreEdge, uCore, d + 0.5 * uCoreEdge * snoise(vec3(o * 9.0, 2.3)));
     vec2 heading = d > 1e-4 ? o / length(o) : vec2(1.0, 0.0);
+    // A frame taller than it is wide (a phone): d counts in frame widths, so the stain
+    // would stop a width from the middle and leave the top and bottom bare. Its reach is
+    // stretched by direction instead, 1 sideways and 1 / aspect^1.3 straight up or down
+    // (the power keeps the corners as well covered as on a 16:10 screen), so it fills the
+    // frame while the core, the splash and every noise stay round. Exactly 1 from square
+    // up, continuous below it
+    float tall = 1.0;
+    if (aspect < 1.0) tall = 1.0 / length(heading * vec2(1.0, pow(aspect, 1.3)));
     vec2 lobeWarp = uLobeWarp * vec2(snoise(vec3(o * 3.0, 21.0)), snoise(vec3(o * 3.0, 37.0)));
     float wet = 0.6 * snoise(vec3((heading + 0.6 * lobeWarp) * uWetScale * 0.5, 4.1)) + 0.4 * snoise(vec3((o + 0.08 * lobeWarp) * uWetScale * 1.6, 7.7));
-    float reach = mix(1.0 + uWetness * (wet - 1.0) * 0.5, 1.0, smoothstep(0.7, 1.0, t));
+    // How far along its way the front is: wetter directions run ahead on a curve that
+    // starts fast and eases out (1 - (1 - t)^(1 / spread)), drier ones go at an even pace,
+    // and every direction arrives at its outline at t = 1. Both curves slow down or hold
+    // steady, so the mix never speeds up: the front used to be held back by a factor that
+    // let go over the last 30% (smoothstep 0.7..1), so it crept, then rushed to the edges
+    // at up to 20 times its speed
+    float wetW = clamp(1.0 + uWetness * (wet - 1.0) * 0.5, 0.0, 1.0);
+    float along = mix(t, 1.0 - pow(1.0 - t, 1.0 / clamp(uSpread, 0.2, 1.0)), wetW);
     // The stain stops at an irregular outline of its own, short of the corners
     float outline = uOutline * (1.0 + uOutlineNoise * fbm(vec3(heading * 1.3 + 0.2 * lobeWarp, 9.1)));
-    float front = uCore + (outline - uCore) * pow(t, uSpread) * reach;
+    float front = uCore + (outline * tall - uCore) * along;
     vec3 pq = vec3(o * uTendrilScale * 1.6 + vec2(1.0, -0.7) * t * uCreep, 0.0);
     vec2 warp = vec2(fbm(pq * 0.5 + vec3(3.1, 1.2, 0.0)), fbm(pq * 0.5 + vec3(-2.7, 5.4, 1.3)));
     float wetEdge = front - d + uFeather * 0.06 * fbm(pq + vec3(warp * 1.6, 0.0));
@@ -410,10 +425,11 @@ void main() {
         float edge;
         if (uExitStyle < 0.5) {
             // Open through: a hole from the middle, pushed open to fill the frame
-            edge = d - (uExit * 1.7 - 0.15 + tear);
+            // (stretched like the stain, so a tall frame opens to its top and bottom too)
+            edge = d - ((uExit * 1.7 - 0.15) * tall + tear);
         } else if (uExitStyle < 1.5) {
             // Dry out: the stain recedes through its noisy edge toward the middle
-            edge = (1.55 - uExit * 1.7 + tear) - d;
+            edge = (1.55 - uExit * 1.7) * tall + tear - d;
         } else {
             // Wash away: everything dissolves in noisy patches at once
             edge = 0.5 + 0.5 * fbm(vec3(o * 5.0 + warp, 23.0)) + 0.1 * tear - uExit * 1.25;

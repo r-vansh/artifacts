@@ -133,7 +133,8 @@ function borders(g: G, r: DOMRect, cs: CSSStyleDeclaration) {
     }
 }
 
-// The post card's guides are gradients: 4 on, 4 off, 40px in (see [slug].astro)
+// The post card's guides are the 1px dashed borders of its ::before and ::after (see [slug].astro),
+// 40px in; the right one one pixel further out. Drawn with the same dashes as any other border
 function guides(g: G, r: DOMRect, cs: CSSStyleDeclaration) {
     const inset = parseFloat(cs.getPropertyValue("--frame")) || 40
     const colour = getComputedStyle(document.documentElement).getPropertyValue("--line").trim()
@@ -141,9 +142,8 @@ function guides(g: G, r: DOMRect, cs: CSSStyleDeclaration) {
     const y = r.top + 1
     const w = r.width - 2
     const h = r.height - 2
-    g.fillStyle = colour
-    for (const at of [inset, h - 1 - inset]) for (let d = 0; d < w; d += 8) g.fillRect(x + d, y + at, Math.min(4, w - d), 1)
-    for (const at of [inset, w - inset]) for (let d = 0; d < h; d += 8) g.fillRect(x + at, y + d, 1, Math.min(4, h - d))
+    for (const at of [inset, h - inset]) dashLine(g, x, y + at + 0.5, x + w, y + at + 0.5, colour)
+    for (const at of [inset, w - inset + 1]) dashLine(g, x + at + 0.5, y, x + at + 0.5, y + h, colour)
 }
 
 function image(g: G, img: HTMLImageElement, r: DOMRect, fit: string) {
@@ -1035,8 +1035,16 @@ function draw() {
 }
 
 // Back flat on the wall, and nothing still on its way
+// The cord is being held (cord.ts, through theme.ts): a peek that has begun stays while it is. A finger
+// never holds still, so the pull amount kept crossing 0 and the peek healed and armed again over and
+// over, a flicker at the top, on real touch screens only (a mouse holds steadier: Vansh, 2026-11-07)
+let kept = false
+export function keep(on: boolean) {
+    kept = on
+}
+
 function healed() {
-    if (pulled > 0 || dip > 0.5) return false
+    if (kept || pulled > 0 || dip > 0.5) return false
     for (let m = 0; m < freed; m++) {
         const i = order[m]
         const i4 = i * 4
@@ -1044,6 +1052,8 @@ function healed() {
     }
     return true
 }
+
+const afterFrame = new Event("cloth:frame")
 
 function frame(now: number) {
     raf = frozen ? 1 : requestAnimationFrame(frame)
@@ -1060,6 +1070,11 @@ function frame(now: number) {
     }
     if (steps === most) spare = 0
     if (!frozen) draw()
+    // The cord (cord.ts) is sewn to where this sheet's nail is now: it takes its next step right here,
+    // after the sheet's, not on its own frame callback, which came before this one every frame and so
+    // always read the nail's position from the frame before, a lag that grew with how fast the sheet
+    // moved (the top of the cord flickered more the harder it was pulled, on real touch screens)
+    document.dispatchEvent(afterFrame)
     if (mode === PEEK) {
         if (healed()) heal()
         return
@@ -1075,7 +1090,11 @@ function frame(now: number) {
 
 // A scroll under a peek would leave the picture behind the page; a new width, any of it
 function onScroll() {
-    if (mode === PEEK) heal()
+    // Only a scroll that moved the page: Safari (an iPad) also fires "scroll" without it moving, as the
+    // canvas goes on and off the page, which healed the peek at once, so that it armed and healed in
+    // turn every frame (a flicker, and the page behind never showing the other theme: Vansh, 2026-11-07)
+    // (a rubber-banded page, scrollY below 0, counts as at the top)
+    if (mode === PEEK && Math.abs(Math.max(0, scrollY) - Math.max(0, startScroll)) > 0.5) heal()
 }
 function onResize() {
     if (document.documentElement.clientWidth !== W) stop()
@@ -1090,6 +1109,7 @@ function listen(on: boolean) {
 // The peek is over: the page again, in this task, so that nothing shows in between. The context
 // stays for the next one
 function heal() {
+    kept = false
     cancelAnimationFrame(raf)
     raf = 0
     mode = IDLE

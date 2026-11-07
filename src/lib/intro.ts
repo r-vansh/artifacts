@@ -116,6 +116,7 @@ const STILL = 6 // px/s: slower than this a particle counts as settled, so the l
 const LAST = 0.02 // on the way back, the share still out when the text takes over (they just join it)
 const SHADES = 16 // steps between the text's grey and the primary orange
 const BANDS = 16 // steps of blur towards the centre line, fine enough not to show as bands
+const ALPHAS = 32 // steps of opacity the particles are drawn in (a canvas state change per step, not per particle)
 
 let intro: HTMLElement | null = null
 let parts: HTMLElement[] = []
@@ -143,8 +144,109 @@ let after = 0 // 0 to 1: how much the particle-drawn text still shows after the 
 let raf = 0
 let last = 0
 let live = false
+let held = 0 // when a post opening over the page froze it (performance.now()); 0 while it runs
+let thawing = 0 // the timer waiting for the closed post's layer to go
+// The particles sorted for drawing, reused every frame: by part and shade, and the blurred ones
+// by band and part
+let bins: Dot[][] = []
+let hazed: Dot[][] = []
+let drawn: number[] | null = null // the box painted on the canvas last frame (CSS px), cleared next frame
+let styled: string[] = [] // the transforms, opacities and --frame last written, so unchanged ones are not
+// Adaptive quality, lowered a step when frames keep running long (`watch()`)
+let cap = 2
+let tier = 0 // 0: full; 1: the particles filled as one path per colour; 2: and the pixel ratio at 1
+let slow = 0 // how many of the recent frames ran long (decaying)
+let running = false // the loop has run a frame already, so the next gap is a real frame's
+let quick = Infinity // the shortest frame seen: the screen's own pace
 
 const clamp = (n: number) => Math.min(1, Math.max(0, n))
+// Adds a box (CSS px) to what this frame paints
+function grow(x0: number, y0: number, x1: number, y1: number) {
+    if (!drawn) drawn = [x0, y0, x1, y1]
+    else {
+        drawn[0] = Math.min(drawn[0], x0)
+        drawn[1] = Math.min(drawn[1], y0)
+        drawn[2] = Math.max(drawn[2], x1)
+        drawn[3] = Math.max(drawn[3], y1)
+    }
+}
+
+// The blur near the break is `ctx.filter` where the canvas has it. Safari's canvas has none (the
+// property may even exist and do nothing), so it is tested once by blurring a dot; without it the
+// bands are blurred by `soften()`. ?blur=fallback forces that path, to compare the two
+let filters: boolean | undefined
+function canFilter() {
+    if (filters !== undefined) return filters
+    filters = false
+    if (new URLSearchParams(location.search).get("blur") === "fallback") return false
+    try {
+        const dot = document.createElement("canvas")
+        dot.width = dot.height = 1
+        dot.getContext("2d")!.fillRect(0, 0, 1, 1)
+        const c = document.createElement("canvas")
+        c.width = c.height = 9
+        const g = c.getContext("2d", { willReadFrequently: true })!
+        g.filter = "blur(2px)"
+        g.drawImage(dot, 4, 4)
+        filters = g.getImageData(2, 4, 1, 1).data[3] > 0
+    } catch {}
+    return filters
+}
+
+// The blur without `ctx.filter`: the band's sharp copy (device px sx, sy, sw, sh of `haze`) is
+// halved down through two small canvases (each halving averages 2 x 2 pixels), then shrunk the
+// last bit to `f` = R / 0.866 (R: the radius in device px), smoothed there by a 3 x 3 [1 2 1]
+// kernel (four copies half a pixel off, added), and drawn back up over the band, smoothed
+// (bilinear). Box, kernel and stretch add up to a spread of 0.866 f, i.e. R, close to a Gaussian;
+// a few small draws per band instead of a filter
+const mips = [document.createElement("canvas"), document.createElement("canvas")]
+function soften(c: CanvasRenderingContext2D, sx: number, sy: number, sw: number, sh: number, R: number, left: number, top: number, w: number, h: number) {
+    const f = Math.max(1, R / 0.866)
+    const need = (cv: HTMLCanvasElement, x: number, y: number) => {
+        if (cv.width < x || cv.height < y) {
+            cv.width = Math.max(cv.width, Math.ceil(x))
+            cv.height = Math.max(cv.height, Math.ceil(y))
+        }
+        return cv.getContext("2d")!
+    }
+    let src: CanvasImageSource = haze
+    let x = sx
+    let y = sy
+    let ww = sw
+    let hh = sh
+    let s = 1 // the scale reached
+    let i = 0
+    // Halvings, then the last bit (less than a halving, so no pixel is skipped)
+    while (s < f) {
+        const k = Math.min(2, f / s)
+        const g = need(mips[i], ww / k + 4, hh / k + 4)
+        g.globalCompositeOperation = "source-over"
+        g.globalAlpha = 1
+        g.clearRect(0, 0, ww / k + 4, hh / k + 4)
+        g.drawImage(src, x, y, ww, hh, 0, 0, ww / k, hh / k)
+        src = mips[i]
+        x = y = 0
+        ww /= k
+        hh /= k
+        s *= k
+        i ^= 1
+    }
+    // The 3 x 3 smoothing, into the other canvas, a pixel in from its edge
+    const g = need(mips[i], ww + 4, hh + 4)
+    g.globalCompositeOperation = "source-over"
+    g.globalAlpha = 1
+    g.clearRect(0, 0, ww + 4, hh + 4)
+    g.globalCompositeOperation = "lighter"
+    g.globalAlpha = 0.25
+    for (const [ox, oy] of NUDGE) g.drawImage(src, x, y, ww, hh, 1 + ox, 1 + oy, ww, hh)
+    c.drawImage(mips[i], 1, 1, ww, hh, left, top, w, h)
+}
+const NUDGE = [
+    [-0.5, -0.5],
+    [0.5, -0.5],
+    [-0.5, 0.5],
+    [0.5, 0.5],
+]
 
 // Draws every glyph of el onto c where the browser put it (r: the canvas origin in client px)
 function copy(c: CanvasRenderingContext2D, el: HTMLElement, r: DOMRect, scale: number) {
@@ -187,11 +289,12 @@ function layout() {
 // The canvas covers the window
 function fit() {
     if (!canvas) return
-    dpr = Math.min(2, devicePixelRatio || 1)
+    dpr = Math.min(cap, devicePixelRatio || 1)
     cw = canvas.clientWidth
     ch = canvas.clientHeight
     canvas.width = haze.width = Math.round(cw * dpr)
     canvas.height = haze.height = Math.round(ch * dpr)
+    drawn = null
     ctx = canvas.getContext("2d")
     ctx?.setTransform(dpr, 0, 0, dpr, 0, 0)
     hctx = haze.getContext("2d")
@@ -211,6 +314,7 @@ function tint(o: CanvasRenderingContext2D) {
 function measure() {
     if (!intro) return
     for (const el of parts) el.style.transform = ""
+    styled = []
     const width = document.documentElement.clientWidth
     measured = layout()
 
@@ -241,6 +345,7 @@ function measure() {
 
     // Sample the glyphs at twice the size, one particle every `size` px of ink
     const scale = 2
+    const scrolled = scrollY
     const off = document.createElement("canvas")
     const o = off.getContext("2d", { willReadFrequently: true })
     if (!o) return
@@ -271,7 +376,7 @@ function measure() {
                 dots.push({
                     k,
                     x: px,
-                    y: py + scrollY,
+                    y: py + scrolled,
                     // Where it is at impact, in case that has already happened
                     px: px + shift[k].x,
                     py: py + shift[k].y,
@@ -336,6 +441,15 @@ function seek(d: Dot, aim: boolean, x: number, y: number, vx: number, vy: number
     // (critical damping, 2ω) and 1 adds none
     const settle = Math.max(0, 2 * (1 - params.bounce) * w - params.drag)
     let gap = Infinity
+    // Pushed about by the eddies: neighbours drift together, each a little its own way (the
+    // eddies are hundreds of px across: where it is at the start of the frame is close enough)
+    let ex = 0
+    let ey = 0
+    if (stir > 0) {
+        const angle = flow(d.px, d.py, now) + d.whim * 1.5
+        ex = Math.cos(angle) * stir * sec
+        ey = Math.sin(angle) * stir * sec
+    }
     for (let s = 0; s < n; s++) {
         const tx = vx * grip
         const ty = vy * grip
@@ -347,7 +461,7 @@ function seek(d: Dot, aim: boolean, x: number, y: number, vx: number, vy: number
             // Full pull from `fall` px out, easing off closer in so it settles on its spot
             const dx = x - d.px
             const dy = y - d.py
-            dist = Math.hypot(dx, dy) || 1
+            dist = Math.sqrt(dx * dx + dy * dy) || 1
             gap = dist
             ux = dx / dist
             uy = dy / dist
@@ -356,12 +470,8 @@ function seek(d: Dot, aim: boolean, x: number, y: number, vx: number, vy: number
             d.vy += uy * f * sec
             near = 1 - Math.min(1, dist / params.fall)
         }
-        // Pushed about by the eddies: neighbours drift together, each a little its own way
-        if (stir > 0) {
-            const angle = flow(d.px, d.py, now) + d.whim * 1.5
-            d.vx += Math.cos(angle) * stir * sec
-            d.vy += Math.sin(angle) * stir * sec
-        }
+        d.vx += ex
+        d.vy += ey
         // Loses speed against the spot it heads for, not against the page, so the drag does
         // not hold it back from a moving pointer
         const damp = Math.exp(-(drag + settle * near * grip) * sec)
@@ -453,11 +563,13 @@ function step(now: number, dt: number) {
     const n = Math.ceil(dt / 17)
     const sec = dt / 1000 / n
     const fading = dt / Math.max(1, params.fade)
+    // Read once: `scrollY` is a call into the page, and it was read for every particle
+    const scrolled = scrollY
     for (const d of dots) {
         // Its spot in the text, where the text is now: slid in, and once they touch, pushed on
         // into the other half
         const tx = d.x + shift[d.k].x * t + runs[d.k].x * press
-        const ty = d.y - scrollY + shift[d.k].y * t + runs[d.k].y * press
+        const ty = d.y - scrolled + shift[d.k].y * t + runs[d.k].y * press
         // Still part of the text, drawn in its grey where it is. It breaks off up to `ragged`
         // px before it reaches the point of contact, never past it, so the halves never overlap
         if (!d.free) {
@@ -509,10 +621,10 @@ function step(now: number, dt: number) {
             // How fast its point on the path moves (0 to 1): the trail frays and the eddies
             // stir only while things move, so a still swarm settles. In the cloud they only
             // billow (`billow`); at full strength they would carry it off in streams
-            const motion = Math.min(1, Math.hypot(mvx, mvy) / 400) * grip
+            const motion = Math.min(1, Math.sqrt(mvx * mvx + mvy * mvy) / 400) * grip
             // The cloud's eddies die down twice as fast as it slows (`puff`), so debris left
             // hanging settles soon (at the same pace they kept it stirring for 5s)
-            const calm = Math.exp((-2 * params.puff * since) / 1000)
+            const calm = grip < 1 ? Math.exp((-2 * params.puff * since) / 1000) : 0
             const stir = Math.max((1 - grip) * params.billow * calm, motion) * params.wander
             // Pulled to its spot around its point on the path
             const spread = params.cloud * (1 + params.fray * u * motion)
@@ -546,7 +658,7 @@ function step(now: number, dt: number) {
         // off it)
         d.vis = Math.min(1, d.vis + fading)
         const grip = clamp((now - d.out) / Math.max(1, params.ramp))
-        const far = Math.hypot(tx - d.px, ty - d.py)
+        const far = Math.sqrt((tx - d.px) ** 2 + (ty - d.py) ** 2)
         // Orange on its way, cooling to the text's grey as it nears its spot
         d.tint = clamp(far / Math.max(1, params.cool))
         const stir = Math.max((1 - grip) * params.billow, grip * clamp((far - params.fall) / 400)) * params.wander
@@ -562,7 +674,7 @@ function step(now: number, dt: number) {
             d.vy *= 1 - k
         }
         // Arrived: the text holds it from here
-        if (grip >= 1 && Math.hypot(tx - d.px, ty - d.py) < 1 && Math.abs(d.vx) + Math.abs(d.vy) < 30) d.free = false
+        if (grip >= 1 && (tx - d.px) ** 2 + (ty - d.py) ** 2 < 1 && Math.abs(d.vx) + Math.abs(d.vy) < 30) d.free = false
     }
     // The moment the last of the text breaks off, the magnet can start
     if (!loose || whole > 0) shred = 0
@@ -582,43 +694,86 @@ function step(now: number, dt: number) {
     // Eased in and out (smoothstep), so neither fade starts or stops abruptly
     const v = Math.max(pre, after)
     const veil = v * v * (3 - 2 * v)
+    // (written only when they change: a style write every frame restyles the box for nothing)
+    const put = (i: number, value: string, write: (s: string) => void) => {
+        if (styled[i] !== value) write((styled[i] = value))
+    }
     parts.forEach((el, k) => {
-        el.style.transform = t ? `translate3d(${(shift[k].x * t).toFixed(1)}px,${(shift[k].y * t).toFixed(1)}px,0)` : ""
-        el.style.opacity = veil > 0 ? (1 - veil).toFixed(3) : ""
+        put(k * 2, t ? `translate3d(${(shift[k].x * t).toFixed(1)}px,${(shift[k].y * t).toFixed(1)}px,0)` : "", (s) => (el.style.transform = s))
+        put(k * 2 + 1, veil > 0 ? (1 - veil).toFixed(3) : "", (s) => (el.style.opacity = s))
     })
     // The box round them lets go of its line as the text turns to particles, and takes it back
-    intro?.style.setProperty("--frame", (1 - veil).toFixed(3))
-    ctx.clearRect(0, 0, cw, ch)
+    put(4, (1 - veil).toFixed(3), (s) => intro?.style.setProperty("--frame", s))
+    // Only what was painted last frame is cleared, not the whole window (a phone's or tablet's
+    // canvas is millions of pixels, most of them empty)
+    if (drawn) ctx.clearRect(drawn[0] - 2, drawn[1] - 2, drawn[2] - drawn[0] + 4, drawn[3] - drawn[1] + 4)
+    drawn = null
     if (veil <= 0) return busy
     const size = params.size
-    // Part by part and shade by shade, so the colour changes only so many times a frame
-    for (let i = 0; i < SHADES * shades.length; i++) {
-        const k = Math.floor(i / SHADES)
-        ctx.fillStyle = shades[k][i % SHADES]
-        for (const d of dots) {
-            if (d.vis <= 0 || d.haze > 0 || d.k !== k || Math.round(d.tint * (SHADES - 1)) !== i % SHADES) continue
-            if (d.px < -size || d.py < -size || d.px > cw || d.py > ch) continue
-            // Solid while grey, like the text; its own opacity once orange. The text's own
-            // particles show as much as the particle-drawn text does
-            const own = params.opacity + d.shade * (1 - params.opacity)
-            ctx.globalAlpha = (1 - d.tint * (1 - own)) * d.vis * (d.free ? 1 : veil)
-            ctx.fillRect(d.px, d.py, size, size)
+    // Sorted in one pass: part by part and shade by shade (so the colour changes only so many
+    // times a frame), the blurred ones band by band. Drawn in the same order as a pass per
+    // colour over all of them would
+    const nk = shades.length
+    if (bins.length !== nk * SHADES * ALPHAS) {
+        bins = Array.from({ length: nk * SHADES * ALPHAS }, () => [])
+        hazed = Array.from({ length: (BANDS + 1) * nk }, () => [])
+    }
+    for (const b of bins) b.length = 0
+    for (const b of hazed) b.length = 0
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+    for (const d of dots) {
+        if (d.haze > 0) {
+            hazed[d.haze * nk + d.k].push(d)
+            continue
         }
+        if (d.vis <= 0 || d.px < -size || d.py < -size || d.px > cw || d.py > ch) continue
+        // Solid while grey, like the text; its own opacity once orange. The text's own
+        // particles show as much as the particle-drawn text does
+        const own = params.opacity + d.shade * (1 - params.opacity)
+        const level = Math.round((1 - d.tint * (1 - own)) * d.vis * (d.free ? 1 : veil) * (ALPHAS - 1))
+        if (level <= 0) continue
+        bins[(d.k * SHADES + Math.round(d.tint * (SHADES - 1))) * ALPHAS + level].push(d)
+        if (d.px < minX) minX = d.px
+        if (d.py < minY) minY = d.py
+        if (d.px > maxX) maxX = d.px
+        if (d.py > maxY) maxY = d.py
+    }
+    if (minX !== Infinity) grow(minX, minY, maxX + size, maxY + size)
+    // Colour by colour, and within a colour opacity by opacity (the same colour over itself
+    // comes out the same in any order), so the canvas's state changes a few dozen times a frame,
+    // not once per particle. When frames run long (`watch()`), each set is one path, filled once
+    let colour = ""
+    for (let i = 0; i < bins.length; i++) {
+        const bin = bins[i]
+        if (!bin.length) continue
+        const c = Math.floor(i / ALPHAS)
+        const fill = shades[Math.floor(c / SHADES)][c % SHADES]
+        if (fill !== colour) ctx.fillStyle = colour = fill
+        ctx.globalAlpha = (i % ALPHAS) / (ALPHAS - 1)
+        if (tier >= 1) {
+            ctx.beginPath()
+            for (const d of bin) ctx.rect(d.px, d.py, size, size)
+            ctx.fill()
+        } else for (const d of bin) ctx.fillRect(d.px, d.py, size, size)
     }
     ctx.globalAlpha = 1
     // The text near the break, band by band: drawn sharp onto `haze` around where that band
-    // is, then copied over with that band's blur (where the canvas cannot blur, it stays sharp)
+    // is, then copied over with that band's blur (`ctx.filter`, or `soften()` where the canvas
+    // has no filter)
     if (hctx) {
+        const filter = canFilter()
         for (let b = 1; b <= BANDS; b++) {
             let x0 = Infinity
             let y0 = Infinity
             let x1 = -Infinity
             let y1 = -Infinity
             // Each part in its own grey
-            for (let k = 0; k < shades.length; k++) {
+            for (let k = 0; k < nk; k++) {
                 hctx.fillStyle = shades[k][0]
-                for (const d of dots) {
-                    if (d.haze !== b || d.k !== k) continue
+                for (const d of hazed[b * nk + k]) {
                     hctx.fillRect(d.px, d.py, size, size)
                     x0 = Math.min(x0, d.px)
                     y0 = Math.min(y0, d.py)
@@ -633,7 +788,12 @@ function step(now: number, dt: number) {
             const top = Math.max(0, Math.floor(y0 - r * 3))
             const w = Math.min(cw, Math.ceil(x1 + r * 3)) - left
             const h = Math.min(ch, Math.ceil(y1 + r * 3)) - top
-            if (w > 0 && h > 0) {
+            grow(left, top, left + w, top + h)
+            if (w > 0 && h > 0 && !filter) {
+                ctx.globalAlpha = veil
+                soften(ctx, left * dpr, top * dpr, w * dpr, h * dpr, r * dpr, left, top, w, h)
+                ctx.globalAlpha = 1
+            } else if (w > 0 && h > 0) {
                 // Clipped to the box, or the canvas blurs a layer the size of the whole window
                 ctx.save()
                 ctx.beginPath()
@@ -651,23 +811,78 @@ function step(now: number, dt: number) {
 }
 
 function frame(now: number) {
+    watch(now - last)
     const dt = Math.min(64, now - last || 16.7)
     last = now
-    cur += (scrollY - cur) * (1 - Math.exp(-dt / Math.max(1, params.glide)))
-    if (Math.abs(scrollY - cur) < 0.2) cur = scrollY
+    const y = scrollY
+    cur += (y - cur) * (1 - Math.exp(-dt / Math.max(1, params.glide)))
+    if (Math.abs(y - cur) < 0.2) cur = y
     const busy = step(now, dt)
-    raf = busy || cur !== scrollY ? requestAnimationFrame(frame) : 0
+    raf = busy || cur !== y ? requestAnimationFrame(frame) : 0
+    if (raf) running = true
+}
+// Frames that keep coming late (an iPad, a phone) make the drawing lighter a step at a time, for
+// the rest of the page's life: first each colour's particles become one path filled once (what
+// changes: where two of the same colour overlap they no longer add up), then the canvas's pixel
+// ratio drops to 1 (a quarter of the pixels to clear, fill and blur; 1.5 would put every other
+// particle across a device pixel, and the text would show seams). Late: more than 1.6 times the
+// shortest frame seen (the screen's own pace) plus 4 ms, and at least 22 ms (a 144 Hz screen
+// drawing at 100 fps is not lagging), in most of the last few dozen frames.
+// Only frames that follow one another count, not the first of a run
+function watch(gap: number) {
+    if (!running) return
+    quick = Math.min(quick, gap)
+    slow = slow * 0.95 + (gap > Math.max(22, quick * 1.6 + 4) ? 1 : 0)
+    if (slow < 12 || tier >= 2) return
+    tier++
+    slow = 0
+    if (tier === 2 && (devicePixelRatio || 1) > 1) {
+        cap = 1
+        fit()
+    }
 }
 const kick = () => {
-    if (!raf) {
+    if (!raf && !held) {
         // The layout may have moved since the last run (zoom, a late font): sample again if so
         if (live && intro && layout() !== measured) measure()
         last = performance.now()
+        running = false
         raf = requestAnimationFrame(frame)
     }
 }
+// A post opening over the page (overlay.ts, from the click on): the effect stops where it is,
+// its canvas left as it was (under the scrim, whose frosted blur would otherwise be redone each
+// frame), and nothing is taken from the pointer meanwhile
+const freeze = () => {
+    clearTimeout(thawing)
+    if (held || !live) return
+    held = performance.now()
+    cancelAnimationFrame(raf)
+    raf = 0
+}
+// ...and once the post's layer has gone (its closing morph over), it carries on exactly from
+// there: every clock it keeps is moved on by the time it stood still
+const thaw = () => {
+    clearTimeout(thawing)
+    if (document.querySelector("body > .overlay")) {
+        thawing = window.setTimeout(thaw, 100)
+        return
+    }
+    if (!held) return
+    const gap = performance.now() - held
+    held = 0
+    for (const p of path) p.t += gap
+    moved += gap
+    if (shred) shred += gap
+    for (const d of dots) {
+        d.brk += gap
+        if (d.out) d.out += gap
+    }
+    kick()
+}
 // pointerover too: it fires when the page scrolls under a pointer that has not moved yet
 const point = (e: PointerEvent) => {
+    if (held) return
     const now = performance.now()
     path.push({ t: now, x: e.clientX, y: e.clientY })
     // Keep as much of it as the trail needs, plus the sample before that
@@ -692,6 +907,9 @@ function stop() {
     removeEventListener("scroll", kick)
     removeEventListener("resize", resize)
     for (const type of ["pointermove", "pointerdown", "pointerover"] as const) removeEventListener(type, point)
+    held = 0
+    clearTimeout(thawing)
+    styled = []
     for (const el of parts) {
         el.style.transform = ""
         el.style.opacity = ""
@@ -729,10 +947,18 @@ async function start() {
     addEventListener("scroll", kick, { passive: true })
     addEventListener("resize", resize)
     for (const type of ["pointermove", "pointerdown", "pointerover"] as const) addEventListener(type, point, { passive: true })
+    // Loaded while a post is open over the page: it waits for it to close
+    if (document.querySelector("body > .overlay")) {
+        freeze()
+        thaw()
+    }
 }
 
 document.addEventListener("nav:enter", start)
 document.addEventListener("nav:leave", stop)
+document.addEventListener("overlay:opening", freeze)
+document.addEventListener("overlay:open", freeze)
+document.addEventListener("overlay:close", thaw)
 // The dark mode switch changed the text's greys
 document.addEventListener("theme:change", () => {
     const o = document.createElement("canvas").getContext("2d")

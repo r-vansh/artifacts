@@ -64,6 +64,11 @@ const external = d.kind === "external"
         mask: url("/crosshair.svg") no-repeat center / var(--cs) var(--cs);
         pointer-events: none;
     }
+    /* Figma's Gray/900 (#2a2a2d) in dark mode (Vansh, 2026-11-08): the dark theme's tokens are flipped,
+       so that value is --gray-100 there */
+    :global(html[data-theme="dark"]) .cross {
+        background: var(--gray-100);
+    }
     .cross.n5 {
         display: block;
     }
@@ -73,6 +78,16 @@ const external = d.kind === "external"
         }
         .cross.n4 {
             --n: 4;
+            display: block;
+        }
+    }
+    /* A touch tablet held sideways: three across (Grid.astro) */
+    @media (max-width: 1199px) and (any-pointer: coarse) {
+        .cross.n4 {
+            display: none;
+        }
+        .cross.n3 {
+            --n: 3;
             display: block;
         }
     }
@@ -91,7 +106,7 @@ const external = d.kind === "external"
         }
         .cross.n2 {
             --n: 2;
-            --cs: 24px;
+            --cs: 32px; /* the frame has 24px; Vansh made it larger, 2026-11-07 */
             --ct: 0px; /* on a phone the frame centres it between the two cards */
             display: block;
         }

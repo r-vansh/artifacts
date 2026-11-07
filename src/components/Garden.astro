@@ -48,7 +48,9 @@ import dark from "../assets/footer/garden-dark.png"
         const start = async () => {
             try {
                 const { default: mount } = await import("../experiments/garden/main")
-                garden = mount(canvas, { ...colours(), showCounter: false, ...overrides }) as Garden
+                // On a phone no plant is taller than 60% of the strip
+                const phone = matchMedia("(max-width: 599px)").matches ? { maxFill: 0.6 } : {}
+                garden = mount(canvas, { ...colours(), showCounter: false, ...phone, ...overrides }) as Garden
                 box.dataset.state = "live"
                 sync()
             } catch (err) {
@@ -93,7 +95,7 @@ import dark from "../assets/footer/garden-dark.png"
     @media (max-width: 599px) {
         .garden {
             margin-top: 0;
-            height: clamp(180px, 54vw, 280px);
+            height: clamp(300px, 85vw, 440px);
         }
     }
     .still {

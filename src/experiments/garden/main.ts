@@ -40,6 +40,7 @@ export interface Options {
     plantDot: number
     minHeight: number
     maxHeight: number
+    maxFill: number // a plant is at most this share of the garden's own height tall (0: only what the ground leaves)
     plantOn: "Ground" | "Anywhere"
     showGround: boolean
     groundHeight: number
@@ -1116,6 +1117,7 @@ export const defaults: Options = {
     plantDot: 1.2,
     minHeight: 120,
     maxHeight: 400,
+    maxFill: 0,
     plantOn: "Ground",
     showGround: true,
     groundHeight: 60,
@@ -1146,7 +1148,7 @@ const mount: Mount<Options> = (canvas, options) => {
     const o: Options = { ...defaults, ...options }
     const {
         gridColor, soilColor, stemColor, leafColor, leafDarkColor, trunkColor, petalColors, centerColor, goldColor,
-        textColor, spacing, gridDot, plantDot, minHeight, maxHeight, plantOn, showGround, groundHeight, wind, maxPlants,
+        textColor, spacing, gridDot, plantDot, minHeight, maxHeight, maxFill, plantOn, showGround, groundHeight, wind, maxPlants,
         persist, showCounter, pollen, pollenColor, birds, birdColor, birdRate, sound, volume, startMuted, showMute,
         treeTap, pollenSound, ambient, ambientVolume,
     } = o
@@ -1382,7 +1384,9 @@ const mount: Mount<Options> = (canvas, options) => {
     }
 
     const heightFor = (type: number, hCells: number) => {
-        const limit = Math.max(4, (onGround ? baseRow : rows) - 2)
+        const room = Math.max(4, (onGround ? baseRow : rows) - 2)
+        // The room the ground leaves, or less: a share of the garden's own height
+        const limit = maxFill > 0 ? Math.min(room, Math.max(4, Math.floor((maxFill * h) / s))) : room
         return Math.max(4, Math.min(limit, Math.round(hCells * KINDS[type].heightScale)))
     }
     const setShape = (p: Plant, H: number) => {

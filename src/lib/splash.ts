@@ -16,9 +16,12 @@ declare global {
     }
 }
 
-const LATE = 4000 // ms after navigation: if it cannot start by then, it does not play
-const OUT = 3700 // ms after the click: the reveal out starts
-const LIMIT = 6000 // ms after the click: everything is torn down, whatever the state
+// ms after navigation: if it cannot start by then, it does not play. Under `npm run dev` on a phone the
+// modules come one by one over the network and can take far longer than the built, bundled site
+// does, so it waits much longer there
+const LATE = import.meta.env.DEV ? 60000 : 4000
+const OUT = 4700 // ms after the click: the reveal out starts (the reveal in takes 4 s: it was 3 s, slowed a bit on 2026-11-07)
+const LIMIT = 7000 // ms after the click: everything is torn down, whatever the state
 const CLICK = ["pointerdown", "keydown"]
 
 const root = document.documentElement
@@ -56,7 +59,7 @@ else {
         // The paper is the page's own grey, so the reveal out opens onto the page without a
         // white cloud round the edge (the experiment's own page keeps its white)
         const background = getComputedStyle(canvas).getPropertyValue("--gray-50").trim() || undefined
-        exp = mount(canvas, { gui: false, background, gateText: "click anywhere", gateAt: window.splashPointer ?? null, revealTime: 3, exitTime: 2, gateDelay: 0.15, clickReplay: false })
+        exp = mount(canvas, { gui: false, background, gateText: "click to enter", gateAt: window.splashPointer ?? null, revealTime: 4, exitTime: 2, gateDelay: 0.15, clickReplay: false })
         // The failsafe is no use now that setup has worked. The veil's white stays under the
         // canvas while it fades in; it steps aside when the reveal out starts.
         veil.style.animation = "none"

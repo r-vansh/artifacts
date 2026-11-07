@@ -50,6 +50,11 @@
         height: 400px;
         overflow: clip;
         pointer-events: none;
+        /* Not text: it cannot be selected, a long press brings up no menu, a tap no highlight */
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-touch-callout: none;
+        -webkit-tap-highlight-color: transparent;
     }
     .hang {
         position: absolute;
@@ -88,6 +93,8 @@
         background: none;
         pointer-events: auto;
         touch-action: none;
+        /* No focus ring on the cord (Vansh, 2026-11-08); the keyboard still works */
+        outline: none;
         color: var(--gray-500);
         cursor: grab;
     }

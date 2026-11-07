@@ -197,6 +197,10 @@ export function createSound(get: () => SoundSettings, files: { impact: string; r
     }
     window.addEventListener("pointerdown", unlock, { once: true })
     window.addEventListener("keydown", unlock, { once: true })
+    // iOS Safari starts audio only from a touch ending or a click, not from the touch starting: unlock
+    // there too (harmless when already unlocked), so the context is running as soon as the finger lifts
+    window.addEventListener("touchend", unlock, { once: true })
+    window.addEventListener("click", unlock, { once: true })
 
     return {
         /** The heavy drop at the start: thump, splash, and the leading ring's swell */
@@ -284,6 +288,8 @@ export function createSound(get: () => SoundSettings, files: { impact: string; r
         close() {
             window.removeEventListener("pointerdown", unlock)
             window.removeEventListener("keydown", unlock)
+            window.removeEventListener("touchend", unlock)
+            window.removeEventListener("click", unlock)
             water?.stop(ctx?.currentTime ?? 0)
             ctx?.close().catch(() => {})
             ctx = undefined

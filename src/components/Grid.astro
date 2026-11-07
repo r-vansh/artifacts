@@ -127,9 +127,23 @@ const crosses = (i: number) => COLUMNS.filter((n) => i % n < n - 1 && i + n + 1 
             grid-template-columns: repeat(4, minmax(0, 1fr));
         }
     }
+    /* A tablet held sideways (1180 wide on an iPad Air): three across, as when it is held upright
+       (Vansh, 2026-11-07), where a mouse window of that width keeps four. On a tablet, either way
+       up (600 to 1199px), the posters stop growing at 160px, their size on a desktop, and the gaps
+       between them take up the rest ("the grid posts are too big on the iPad") */
+    @media (max-width: 1199px) and (any-pointer: coarse) {
+        .grid {
+            grid-template-columns: repeat(3, minmax(0, 160px));
+        }
+    }
     @media (max-width: 899px) {
         .grid {
             grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+    }
+    @media (min-width: 600px) and (max-width: 899px) and (any-pointer: coarse) {
+        .grid {
+            grid-template-columns: repeat(3, minmax(0, 160px));
         }
     }
     /* A phone (Figma 3291:18544): two posters a third of the row wide each, the rest between them

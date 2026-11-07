@@ -85,10 +85,12 @@ const items = await getEntries()
         color: var(--gray-700);
     }
     /* A phone (Figma 3291:18544): 123px under the logo header and 120px below, the box 32px in from
-       the window's edge and stacked and centred: the heading at 24px over the line at 14px */
+       the window's edge and stacked and centred: the heading at 32px (the frame has 24px; Vansh, 2026-11-07) over the line at 14px */
     @media (max-width: 599px) {
         .intro {
-            padding-top: 30.6vw;
+            /* The 16px the header lost (12px less above the logo, a 28px logo) keep the box where
+               the frame has it */
+            padding-top: calc(30.6vw + 16px);
             margin-bottom: 29.85vw;
         }
         .box {
@@ -99,7 +101,7 @@ const items = await getEntries()
             padding: 24px 16px;
         }
         h1 {
-            font-size: 24px;
+            font-size: 32px;
         }
         p {
             width: 228px;

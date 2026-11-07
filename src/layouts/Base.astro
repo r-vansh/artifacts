@@ -38,6 +38,9 @@ const canonical = new URL(Astro.url.pathname, Astro.site)
                 ) {
                     sessionStorage.setItem("splash", "1")
                     document.documentElement.setAttribute("data-splash", "")
+                    // The 5 s fallback that lifts the veil if the loader never starts: much longer
+                    // under `npm run dev` (modules one by one, over Wi-Fi to a phone), as in splash.ts
+                    if (dev) document.documentElement.style.setProperty("--splash-limit", "60s")
                     // Where the pointer is, so the loader's cursor can start there at once
                     addEventListener("pointermove", (e) => (window.splashPointer = { x: e.clientX, y: e.clientY }), { passive: true })
                 }
@@ -111,7 +114,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site)
         position: fixed;
         inset: 0;
         z-index: 100;
-        animation: splash-failsafe 0.5s 5s forwards;
+        animation: splash-failsafe 0.5s var(--splash-limit, 5s) forwards;
     }
     /* The home page's dev-only tuning panel stays out of the loader's way */
     :global(html[data-splash] .tune) {
@@ -150,6 +153,17 @@ const canonical = new URL(Astro.url.pathname, Astro.site)
         display: flex;
         justify-content: flex-start;
         padding: 24px var(--edge) 0;
+    }
+    /* A phone: 12px above the logo (Vansh, 2026-11-07), the header 12px shorter */
+    @media (max-width: 599px) {
+        .top {
+            padding-top: 12px;
+        }
+        /* And the mark 28px tall (Vansh, 2026-11-07): the same shape, 0.8054 as wide as it is tall */
+        .mark :global(.logo) {
+            height: 28px;
+            width: 22.55px;
+        }
     }
     .mark {
         display: inline-flex;

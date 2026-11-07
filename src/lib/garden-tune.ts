@@ -24,6 +24,7 @@ const GROUPS: [string, Control[]][] = [
             { key: "plantDot", type: "range", label: "Plant dot", min: 0.5, max: 6, step: 0.1 },
             { key: "minHeight", type: "range", label: "Min height", min: 20, max: 400, step: 5 },
             { key: "maxHeight", type: "range", label: "Max height", min: 40, max: 600, step: 5 },
+            { key: "maxFill", type: "range", label: "Tallest, share of the garden (0 off)", min: 0, max: 1, step: 0.01 },
             { key: "plantOn", type: "menu", label: "Plant on", options: ["Ground", "Anywhere"] },
             { key: "maxPlants", type: "range", label: "Max plants", min: 1, max: 100, step: 1 },
             { key: "persist", type: "switch", label: "Remember the garden" },
@@ -261,7 +262,7 @@ let stored: string | null = null
 try {
     stored = localStorage.getItem("tune:garden:folded")
 } catch {}
-setFolded(stored !== "0")
+setFolded(matchMedia("(max-width: 599px)").matches || stored !== "0")
 fold.addEventListener("click", () => setFolded(!el.hasAttribute("data-folded")))
 el.addEventListener("click", async (e) => {
     const button = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-act]")

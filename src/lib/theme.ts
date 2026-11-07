@@ -84,6 +84,9 @@ export function peek(px: number) {
 
 export const anchor = () => cloth?.anchor()
 
+/** The cord is held (true) or let go (false): a peek that has begun is not healed while it is held */
+export const hold = (on: boolean) => cloth?.keep(on)
+
 /** The pointer is near the cord */
 export function prime() {
     cloth?.prime()
