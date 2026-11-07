@@ -32,15 +32,23 @@ With a mouse, the grid bulges under the pointer like a dome: the posters near it
 
 A post opens over the grid, not as a page of its own (`src/lib/overlay.ts`). The clicked poster comes apart into particles in its own colours, which fly onto the post's card as it grows out of the poster, bulging like a lens, and settles (`src/lib/converge.ts`; the bulge is a WebGL shader over a picture of the card, which then hands over to the real card). Closing plays it back into the poster. The URL changes to `/<slug>`; Back, Esc, the close corner or a click outside closes it, and opening `/<slug>` directly still gives the full page. With reduced motion it opens without the effects; without WebGL2, without the bulge.
 
+Two chevron chips on the card (and the left and right arrow keys) switch to the previous or next post, round the ends of the list: the content scrambles into small particles in its own colours and comes back as the neighbour's, in about half a second, while the card's frame stays still. The address follows the post (Back or Esc still closes in one step), and the next posts are fetched ahead. Reloading an open post goes back to the grid, closed; Esc leaves no focus ring on the card.
+
 The card follows the Figma frames 3236:43212 and 3243:43542: 16:10, dashed guides 40px in, the title, summary and tags on the left, the "open" and "github" links at the bottom, and the media on the right, scrolling on its own under frosted bands at the top and bottom. The expand corner fills the window with it; only the media grows. Its icons are in `public/icons`.
 
 ## Dark mode: the cord
 
-A dashed cord with a sun on the end hangs from the top of every page (Figma node 3252:17850; `src/components/Cord.astro`, physics in `src/lib/cord.ts`). It sways on its own, and a pointer passing by swings and stretches it, but only holding the click and pulling reaches the page; a plain click just tugs at the cord.
+A dashed cord hangs from the top of every page, ending in a moon on the light page and a sun on the dark one (Figma node 3252:17850; `src/components/Cord.astro`, physics in `src/lib/cord.ts`). It sways on its own, and a pointer passing by swings and stretches it, but only holding the click and pulling reaches the page; a plain click just tugs at the cord.
 
-The page itself is a cloth (`src/lib/cloth.ts`). A slight pull peels it off the wall around the cord, with the dark page showing behind; let go and it heals flat, with nothing changed. A proper pull, about 105 px, tears it away: it falls, folds and piles up on the bottom edge, then drops out of the window with the cord, and a new cord lowers from the top. Pulling in dark mode fades back to light (there is no cloth that way). The choice is kept in localStorage; light is the default, and the system setting is not read.
+The page itself is a cloth (`src/lib/cloth.ts`). A slight pull peels it off the wall around the cord, with the dark page showing behind; let go and it heals flat, with nothing changed. A proper pull, about 105 px, tears it away: it falls, folds and piles up on the bottom edge, then drops out of the window with the cord, and a new cord lowers from the top. It works both ways: pulling in dark mode lets the dark page fall to show the light one. The choice is kept in localStorage; light is the default, and the system setting is not read.
 
-Dark mode is the same colour tokens turned over (`src/styles/global.css`), so keep using tokens and it follows. WebGL can't draw a web page, so `cloth.ts` paints what is on screen onto a canvas from its measurements: **a new kind of CSS on a page has to be taught to the painter**, or the fabric won't quite match the page. Under reduced motion, without WebGL2, or before the cloth has loaded it is a plain colour fade. Enter on the focused sun switches straight away.
+Dark mode is the same colour tokens turned over (`src/styles/global.css`), so keep using tokens and it follows. WebGL can't draw a web page, so `cloth.ts` paints what is on screen onto a canvas from its measurements: **a new kind of CSS on a page has to be taught to the painter**, or the fabric won't quite match the page. Under reduced motion, without WebGL2, or before the cloth has loaded it is a plain colour fade. Enter on the focused cord switches straight away. The dark frames are in Figma (`3273:17727` page, `3274:17839` scrim, `3274:18283` card); the dashed lines use one token, `--line`.
+
+## The footer
+
+Under the grid: "Let's nerd out about design", the View Resume button, the address (a click copies it, as on vanshrastogi.me), and five social icons, each with a name-and-handle tag on hover (`src/components/Contact.astro`, Figma `3203:17832`). The button darkens on hover and four corner brackets slide in around it.
+
+The bottom of every page is the real garden (`src/components/Garden.astro`, `src/experiments/garden`): a dot-grid garden you plant, sway and drag, with birds, pollen and soft synthesized sound, ported from the Framer component in the soundhub repo (`r-vansh/soundhub`). It starts when it nears the screen, pauses off screen, takes the theme's colours, and its sound fades in and out (the loader's click already counts as the gesture; if the page has had none, the first click anywhere does). It is also a post (`/garden`); both share one saved garden. Pictures of it stand in until it starts and under reduced motion.
 
 ## The loading animation
 
@@ -56,7 +64,7 @@ Scrolling is smoothed with Lenis (`src/lib/smooth.ts`), on the page and inside a
 
 ## Tuning panels
 
-Under `npm run dev`, panels on the sides of the page tune the effects live: Scroll (every page), Bulge (the grid's dome), Morph (opening a post), Particles (the intro effect, home page), Cord and Cloth. Every setting has a slider; double-click one to reset it. "Copy values" puts them on the clipboard; paste them over `params` near the top of the matching file (`smooth.ts`, `dock.ts`, `converge.ts`, `intro.ts`, `cord.ts`, `cloth.ts`) to make them the defaults. The panels exist only in dev and are not in the build.
+Under `npm run dev`, panels on the sides of the page tune the effects live: Scroll (every page), Bulge (the grid's dome), Morph (opening a post), Particles (the intro effect, home page), Cord, Cloth and Garden (the garden's Framer controls: sliders, switches, menus and colours; changing one starts it again with its plants kept). Morph also holds the switch between posts. Every setting has a slider; double-click one to reset it. "Copy values" puts them on the clipboard; paste them over `params` near the top of the matching file (`smooth.ts`, `dock.ts`, `converge.ts`, `intro.ts`, `cord.ts`, `cloth.ts`; the garden's go in `defaults` in `src/experiments/garden/main.ts`) to make them the defaults. The panels exist only in dev and are not in the build.
 
 The orange **Scrub the cloth** button at the top of the window (also dev only, `src/lib/scrub.ts`) records a scripted pull and gives you a timeline: drag it both ways, play it slowly, step with the arrow keys. Moving a Cord or Cloth slider simulates it again with the same folds; the light and shadow sliders apply at once. Close or Esc puts everything back. The loader's waiting screen has no panel of its own: tune it on `/flow-field` with "Show gate again" and the "Waiting drift" sliders.
 
@@ -78,28 +86,30 @@ Checked by `scripts/budget.mjs` on every build (gzipped sizes) and by Lighthouse
 | What | Limit |
 | --- | --- |
 | A page's HTML with inlined CSS | 30 KB |
-| JS a page loads before an experiment | 5 KB |
+| JS a page loads before an experiment | 6 KB |
 | One experiment's own code | 60 KB |
 | The font file | 30 KB |
 | Lighthouse performance, mobile | 95 or higher |
 
-Anything heavy loads lazily: the post overlay and its particles, Barba and GSAP, Lenis, the intro effect, the cord's physics and the cloth. The home page's first-load JS is about 4.3 KB.
+Anything heavy loads lazily: the post overlay and its particles, Barba and GSAP, Lenis, the intro effect, the cord's physics, the cloth and the garden's code. The home page's first-load JS is about 5.2 KB.
 
 ## Layout
 
 ```
 src/
   experiments/<slug>/   index.md, main.ts, poster.png
-  components/           Card, Contact, Cord, Grid, Stage
+  components/           Card, Contact, Cord, Garden, Grid, Stage
   layouts/Base.astro
   lib/                  stage.ts (loader), types.ts (the mount contract), entries.ts,
                         overlay.ts + converge.ts (opening a post), dock.ts (the grid's bulge),
                         smooth.ts (Lenis), intro.ts (the heading's scroll burst),
                         splash.ts (the loading animation), nav.ts + barba.ts (page swaps),
                         theme.ts + cord.ts + cloth.ts (dark mode, the cord, the page as a cloth),
-                        panel.ts + *-tune.ts, tune.ts and scrub.ts (dev only: panels, timeline)
+                        panel.ts + *-tune.ts (cord, cloth, garden, morph...), tune.ts and scrub.ts (dev only: panels, timeline)
   pages/                index, [slug] (the post card), [slug]/play, tags/[tag], rss.xml, llms.txt
-public/                 icons/, cursors, fonts, crosshair and overlay marks
+public/                 icons/, social/ (dark icons), cursors, fonts, crosshair and overlay marks,
+                        favicon-light/dark.svg (picked by the browser's colour scheme) and apple-touch-icon.png
+src/assets/             social/ (the icons), footer/ (the garden's stand-in pictures)
 scripts/                budget.mjs, poster.mjs
 ```
 

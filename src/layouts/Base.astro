@@ -16,7 +16,7 @@ const {
     description = "art/facts: experiments by Vansh Rastogi, built over time while learning tools, workflows and tricks.",
     image,
 } = Astro.props
-const fullTitle = title ? `${title} · art/facts` : "art/facts · Vansh Rastogi"
+const fullTitle = title ? `${title} • ART/FACTS` : "ART/FACTS • Vansh Rastogi"
 const canonical = new URL(Astro.url.pathname, Astro.site)
 
 ---
@@ -57,7 +57,9 @@ const canonical = new URL(Astro.url.pathname, Astro.site)
             } catch {}
         </script>
         <link rel="canonical" href={canonical} />
-        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="icon" href="/favicon-light.svg" type="image/svg+xml" media="(prefers-color-scheme: light)" />
+        <link rel="icon" href="/favicon-dark.svg" type="image/svg+xml" media="(prefers-color-scheme: dark)" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="preload" href="/fonts/geist.woff2" as="font" type="font/woff2" crossorigin />
         <link rel="preload" href="/fonts/geist-pixel-circle.woff2" as="font" type="font/woff2" crossorigin />
         <link rel="alternate" type="application/rss+xml" title="art/facts" href="/rss.xml" />
