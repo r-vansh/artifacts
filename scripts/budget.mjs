@@ -7,7 +7,9 @@ import { basename, join, relative } from "node:path"
 const KB = 1024
 const BUDGET = {
     html: 30 * KB, // a page's HTML with its inlined CSS
-    pageJs: 5 * KB, // JS a page loads before any experiment
+    // JS a page loads before any experiment. 6 KB since 2026-11-07 (was 5): the home page now
+    // carries the theme switch, the garden strip's loader and the address copy
+    pageJs: 6 * KB,
     experiment: 60 * KB, // one experiment's own chunk
     // The loading animation's lazy chunk carries p5.js (its core and math modules, about
     // 121 KB); Vansh chose p5 over plain canvas, knowing it needs this
