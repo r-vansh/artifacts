@@ -21,9 +21,9 @@ const experiments = defineCollection({
                 posterAlt: z.string().default(""),
                 ratio: z.number().positive().optional(),
                 fill: z.string().default("var(--gray-200)"),
-                // More media shown under the stage: an image, or a solid block with a ratio (height / width)
+                // More media shown under the stage: a video (file name in the entry's folder), an image, or a solid block with a ratio (height / width)
                 gallery: z
-                    .array(z.object({ image: image().optional(), alt: z.string().default(""), ratio: z.number().positive().default(0.75), fill: z.string().default("var(--gray-100)") }))
+                    .array(z.object({ video: z.string().optional(), image: image().optional(), alt: z.string().default(""), ratio: z.number().positive().default(0.75), fill: z.string().default("var(--gray-100)") }))
                     .default([]),
                 preview: z.string().optional(),
                 url: z.url().optional(),

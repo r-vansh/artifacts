@@ -16,8 +16,9 @@ Node 22.22 or newer.
 
 1. Copy `src/experiments/_template` to `src/experiments/<slug>` (no leading underscore).
 2. Write `main.ts`: a `mount(canvas, options)` function that returns `pause`, `resume` and `stop`. No framework needed. `src/experiments/game-of-life/main.ts` is a full example ported from a Framer component.
-3. Fill in the frontmatter in `index.md`. Only the title, summary and tags show on the post; `source` adds a "github" link and an interactive post gets an "open" link to its fullscreen stage. Extra images go in `gallery`.
+3. Fill in the frontmatter in `index.md`. Only the title, summary and tags show on the post; `source` adds a "github" link and an interactive post gets an "open" link to its fullscreen stage (it opens in a new tab). Extra images go in `gallery`; a gallery item can also be `video: file.mp4` (a file in the experiment's folder, with `ratio` for its shape), which sits under the stage and plays by itself with sound while on screen, with only a mute icon button in its top right corner.
 4. `npm run build && npm run poster -- <slug>` grabs `poster.png` from the running canvas. Rebuild. Every card shows its poster as a square (cropped to fill), so keep the important part in the middle.
+4b. Optional hover video (grid cards, mouse only): put `preview.mp4` in the experiment folder (any other .mp4 there is used if there is none). It plays with sound while a mouse is over the card and is fetched only on hover, so the sound fades in over 0.8 s and out over 0.4 s, and if the browser refuses sound before a click the video plays muted and the next click anywhere turns it on. Keep it small (3 to 5 s, about 480 px, under 600 KB): `ffmpeg -i full.mp4 -t 4 -vf "scale=480:480:force_original_aspect_ratio=increase,crop=480:480" -c:v libx264 -crf 28 -preset slow -pix_fmt yuv420p -c:a aac -b:a 64k -movflags +faststart preview.mp4`.
 5. Push to `main`, then publish by hand: Actions → Deploy → Run workflow (see Deploy below).
 
 The build fails if the frontmatter is wrong (unknown tag, summary over 140 characters, missing poster) or if a page goes over budget.
@@ -52,7 +53,11 @@ The bottom of every page is the real garden (`src/components/Garden.astro`, `src
 
 ## The loading animation
 
-On the first page of a visit, the Flow Field experiment covers the page full screen, faint, with ripples crossing it in silence, until a click (or Enter/Space). The pointer is a small dark pill reading "click anywhere" (Figma node 3202:17823) while it waits. Then it draws itself in and opens through to the page, and the loader is gone about 5.7 s after that click (6 s at the latest). It plays once per tab session, on every load under `npm run dev`, and never under reduced motion or without JS. It is `src/lib/splash.ts`, a lazy chunk that `Base.astro` loads, mounting `src/experiments/flow-field` with no tuning panel.
+On the first page of a visit, the Flow Field experiment covers the page full screen, faint, with ripples crossing it in silence, until a click (or Enter/Space). The pointer is a small dark pill reading "click to enter" with four corner handles (Figma nodes 3202:17823 and 3298:19895; on a touch screen "tap to enter" at the bottom of the window, node 3293:19891) while it waits. Its shaders compile in the background first, so the page stays responsive meanwhile (a CSS cloud fades in under the veil until then); on a very slow or CPU-drawn GL the waiting screen stops redrawing and stays a still picture until the click. How much it draws follows what the device measures (four quality tiers). Then it draws itself in and opens through to the page, and the loader is gone about 5.7 s after that click (6 s at the latest). It plays once per tab session, on every load under `npm run dev`, and never under reduced motion or without JS. It is `src/lib/splash.ts`, a lazy chunk that `Base.astro` loads, mounting `src/experiments/flow-field` with no tuning panel.
+
+## Scrollbar and focus ring
+
+The browser's page scrollbar is hidden; `src/lib/scrollbar.ts` (a lazy chunk, mouse only) shows a thin custom one only while the pointer is within 40px of the right edge, or while you drag it. The keyboard focus ring is 1.5px, Gray/300 in light mode and Figma's Gray/800 in dark (`global.css`); the cord has none.
 
 ## The intro effect
 
@@ -89,7 +94,7 @@ Checked by `scripts/budget.mjs` on every build (gzipped sizes) and by Lighthouse
 | JS a page loads before an experiment | 6 KB |
 | One experiment's own code | 60 KB |
 | The font file | 30 KB |
-| Lighthouse performance, mobile | 95 or higher |
+| Lighthouse performance, mobile | 95 or higher (CI's runner draws WebGL on the CPU and fails this because of the loader; see `CLAUDE.md`) |
 
 Anything heavy loads lazily: the post overlay and its particles, Barba and GSAP, Lenis, the intro effect, the cord's physics, the cloth and the garden's code. The home page's first-load JS is about 5.2 KB.
 

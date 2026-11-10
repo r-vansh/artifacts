@@ -12,10 +12,14 @@ export async function getStaticPaths() {
 }
 
 const { entry } = Astro.props
+// Gallery videos: files in the entry's folder, by name
+const mp4s = import.meta.glob<string>("../experiments/*/*.mp4", { query: "?url", import: "default", eager: true })
+const mp4 = (name: string) => Object.entries(mp4s).find(([p]) => p.endsWith(`/${entry.id}/${name.replace(/^\.\//, "")}`))?.[1]
 const d = entry.data
 const og = d.poster ? await getImage({ src: d.poster, width: 1200, format: "jpeg" }) : undefined
 // "open": the experiment on its own (the fullscreen stage), or where it lives on the portfolio
-const open = d.kind === "interactive" ? `/${entry.id}/play` : d.inPortfolio
+// An interactive entry with its own live page (url) opens that instead of /play
+const open = d.kind === "interactive" ? (d.url ?? `/${entry.id}/play`) : d.inPortfolio
 // Previous and next post in the grid's order, round the ends (the first one's previous is the
 // last, the last one's next is the first); only posts that have a page of their own
 const pages = (await getEntries()).filter(({ entry: e }) => e.data.kind !== "external").map(({ entry: e }) => e.id)
@@ -60,7 +64,7 @@ const steps = pages.length > 1 ? { prev: pages[(at - 1 + pages.length) % pages.l
                                     </>
                                 )}
                                 {open && (
-                                    <a class="chip" href={open}>
+                                    <a class="chip" href={open} target="_blank" rel="noopener">
                                         open
                                         <i class="icon redirect" />
                                     </a>
@@ -87,7 +91,12 @@ const steps = pages.length > 1 ? { prev: pages[(at - 1 + pages.length) % pages.l
                     }
                     {
                         d.gallery.map((g) =>
-                            g.image ? (
+                            g.video ? (
+                                <div class="clip">
+                                    <video src={mp4(g.video)} loop playsinline preload="metadata" aria-label={g.alt || undefined} style={`aspect-ratio: 1 / ${g.ratio}`} />
+                                    <button class="chip step mute" type="button" aria-label="Mute" aria-pressed="false"><i class="icon" /></button>
+                                </div>
+                            ) : g.image ? (
                                 <Picture src={g.image} alt={g.alt} formats={["avif", "webp"]} widths={[720, 1080, 1600]} sizes="880px" loading="lazy" />
                             ) : (
                                 <div class="fill" style={`aspect-ratio: 1 / ${g.ratio}; background: ${g.fill}`} />
@@ -396,12 +405,37 @@ const steps = pages.length > 1 ? { prev: pages[(at - 1 + pages.length) % pages.l
         display: none;
     }
     .media :global(img),
+    .media video,
+    .media .clip,
     .media .fill {
         display: block;
         flex: none;
         width: 100%;
         height: auto;
         background: var(--gray-100);
+    }
+    /* A gallery video: plays by itself, with sound, no native controls; just a mute chip in its corner */
+    .clip {
+        position: relative;
+        background: none;
+    }
+    .clip video {
+        display: block;
+        width: 100%;
+        height: auto;
+    }
+    .mute {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        border: 0;
+        cursor: var(--cursor-hand);
+    }
+    .mute .icon {
+        --src: url("/icons/sound.svg");
+    }
+    .mute[aria-pressed="true"] .icon {
+        --src: url("/icons/muted.svg");
     }
     /* The first block is 880 x 560 in the design (11:7), whatever the poster's own shape */
     .media :global(.stage) {
@@ -692,6 +726,57 @@ const steps = pages.length > 1 ? { prev: pages[(at - 1 + pages.length) % pages.l
         scrolls()
     }
     const init = () => document.querySelectorAll<HTMLElement>(".post .inner").forEach(bind)
+    init()
+    document.addEventListener("overlay:open", init)
+    document.addEventListener("nav:enter", init)
+</script>
+
+<script>
+    // Gallery videos play by themselves while they are on screen, with sound; the only control is
+    // the mute icon button in the top right. A browser that refuses sound before a click on the page (a post opened as a
+    // page, not clicked open) plays it muted and the icon then shows muted. Reduced motion: no
+    // autoplay (the video stays a still frame)
+    const still = matchMedia("(prefers-reduced-motion: reduce)")
+    function clip(box: HTMLElement) {
+        if (box.dataset.clip !== undefined) return
+        box.dataset.clip = ""
+        const v = box.querySelector("video")
+        const b = box.querySelector<HTMLButtonElement>(".mute")
+        if (!v || !b) return
+        let muted = false
+        let seen = false
+        const show = () => {
+            v.muted = muted
+            b.setAttribute("aria-label", muted ? "Unmute" : "Mute")
+            b.setAttribute("aria-pressed", String(muted))
+        }
+        const play = () => {
+            if (still.matches) return
+            v.muted = muted
+            v.play().catch(() => {
+                muted = true
+                show()
+                v.play().catch(() => {})
+            })
+        }
+        b.addEventListener("click", () => {
+            muted = !muted
+            show()
+        })
+        const io = new IntersectionObserver(([e]) => {
+            seen = e.isIntersecting
+            if (seen && !document.hidden) play()
+            else v.pause()
+        }, { threshold: 0.4 })
+        io.observe(box)
+        const hide = () => {
+            if (!box.isConnected) return document.removeEventListener("visibilitychange", hide)
+            if (document.hidden) v.pause()
+            else if (seen) play()
+        }
+        document.addEventListener("visibilitychange", hide)
+    }
+    const init = () => document.querySelectorAll<HTMLElement>(".post .clip").forEach(clip)
     init()
     document.addEventListener("overlay:open", init)
     document.addEventListener("nav:enter", init)
